@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.1.189">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Joelle Fitzgerald">
+<meta name="dcterms.date" content="2022-09-12">
+
+<title>Joelle_Fitzgerald_jkf60_SQLandEHR_Homework</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1.6em;
+  vertical-align: middle;
+}
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { color: #008000; } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { color: #008000; font-weight: bold; } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+</style>
+
+
+<script src="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/clipboard/clipboard.min.js"></script>
+<script src="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/quarto-html/quarto.js"></script>
+<script src="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/quarto-html/popper.min.js"></script>
+<script src="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/quarto-html/anchor.min.js"></script>
+<link href="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="Joelle_Fitzgerald_SQLandEHR_Homework_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Joelle_Fitzgerald_jkf60_SQLandEHR_Homework</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Joelle Fitzgerald </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">September 12, 2022</p>
+    </div>
+  </div>
+    
+  </div>
+  
+
+</header>
+
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)     <span class="co"># loads the tidyverse tools</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(RPostgres)     <span class="co"># loads the database driver for PostgreSQL</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(connections)   <span class="co"># helps RPostgres work with RStudio</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(keyring)       <span class="co"># access to a local encrypted keychain for passwords</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">"tinytex"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Installing tinytex [0.41] ...
+    OK [linked cache]</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tinytex)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>con <span class="ot">&lt;-</span> <span class="fu">connection_open</span>(RPostgres<span class="sc">::</span><span class="fu">Postgres</span>(),</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>          <span class="at">dbname =</span> <span class="st">"syntheticMGUH2022"</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>          <span class="at">host =</span> <span class="st">"35.199.26.47"</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>          <span class="at">user =</span> <span class="st">"hids502_student"</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>          <span class="at">password =</span> <span class="fu">key_get</span>(<span class="at">service =</span> <span class="st">"syntheticmguh"</span>, </span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>                             <span class="at">username =</span> <span class="st">"hids502_student"</span>),</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>          <span class="at">bigint =</span> <span class="st">"numeric"</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Use this to set a default connection for every SQL chunk</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># There seems to be some sort of bug in Quarto that requires this</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span>opts_chunk<span class="sc">$</span><span class="fu">set</span>(<span class="at">connection =</span> <span class="st">"con"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="question-1" class="level1">
+<h1>Question 1</h1>
+<ol type="1">
+<li>What are the top 3 causes of morbidity (illness) and the top 3 causes of mortality (death) in the US?</li>
+</ol>
+<p>According to the Centers for Disease Control and Prevention (CDC), data from 2020 suggests the top 3 causes of mortality or death in the United States are Heart Disease, Cancer, and COVID-19. Heart Disease contributed to 696,962 deaths per 100,000 U.S. standard population, Cancer contributed to 602,350 deaths per 100,000 U.S. standard population, and COVID-19 contributed to 350,831 deaths per 100,000 U.S. standard population (Murphy, Kochanek, Xu, &amp; Arias 1). In a 2020 study of hospitalized COVID-19 patients in New York, researchers found hypertension, obesity, and diabetes were the most prevalent morbidities in patients (Richardson, Safiya et al 7).</p>
+<p>In the Synthea data set, how would you estimate similar answers?</p>
+<p>Mortality:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Selecting the top 3 causes of mortality (death) in the Synthea data set --</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> conditions.description <span class="kw">as</span> mortality, <span class="fu">COUNT</span>(conditions.description)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> conditions</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">INNER</span> <span class="kw">JOIN</span> observations <span class="kw">ON</span> conditions.description <span class="op">=</span> observations.<span class="fu">value</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">WHERE</span> observations.code <span class="op">=</span> <span class="st">'69453-9'</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">GROUP</span> <span class="kw">BY</span> conditions.description</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> <span class="fu">COUNT</span>(conditions.description) <span class="kw">DESC</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">LIMIT</span> <span class="dv">3</span> <span class="co">-- limit to top 3 causes of death --</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="knitsql-table">
+<table class="table table-sm table-striped">
+<caption>3 records</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">mortality</th>
+<th style="text-align: right;">count</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Chronic congestive heart failure (disorder)</td>
+<td style="text-align: right;">599676</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Stroke</td>
+<td style="text-align: right;">547521</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Myocardial Infarction</td>
+<td style="text-align: right;">298350</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>When I run this code without a lIMIT clause I can see that COVID-19 and cancer/malignancies are also a large contributor to mortality in the Synthea data set.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- returns all possible causes of death in order from most prevalent to least prevalent --</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> conditions.description <span class="kw">as</span> mortality, <span class="fu">COUNT</span>(conditions.description)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> conditions</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="kw">INNER</span> <span class="kw">JOIN</span> observations <span class="kw">ON</span> conditions.description <span class="op">=</span> observations.<span class="fu">value</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">WHERE</span> observations.code <span class="op">=</span> <span class="st">'69453-9'</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">GROUP</span> <span class="kw">BY</span> conditions.description</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> <span class="fu">COUNT</span>(conditions.description) <span class="kw">DESC</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="knitsql-table">
+<table class="table table-sm table-striped">
+<caption>Displaying records 1 - 10</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">mortality</th>
+<th style="text-align: right;">count</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Chronic congestive heart failure (disorder)</td>
+<td style="text-align: right;">599676</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Stroke</td>
+<td style="text-align: right;">547521</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Myocardial Infarction</td>
+<td style="text-align: right;">298350</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Cardiac Arrest</td>
+<td style="text-align: right;">141726</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Alzheimer’s disease (disorder)</td>
+<td style="text-align: right;">139748</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">COVID-19</td>
+<td style="text-align: right;">113564</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Drug overdose</td>
+<td style="text-align: right;">75480</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Pulmonary emphysema (disorder)</td>
+<td style="text-align: right;">75152</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Chronic obstructive bronchitis (disorder)</td>
+<td style="text-align: right;">50960</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Pneumonia</td>
+<td style="text-align: right;">35721</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>Morbidity:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Selecting the top 3 causes of morbidity (illness) in the Synthea data set --</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">AS</span> morbidity_rate, description</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> conditions</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> (description <span class="kw">NOT</span> <span class="kw">LIKE</span> <span class="st">'%(finding)'</span> <span class="kw">AND</span> description <span class="kw">NOT</span> <span class="kw">LIKE</span> <span class="st">'%(person)'</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="kw">GROUP</span> <span class="kw">BY</span> description</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> morbidity_rate <span class="kw">DESC</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">LIMIT</span> <span class="dv">3</span> <span class="co">-- limit top three causes of morbidity --</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="knitsql-table">
+<table class="table table-sm table-striped">
+<caption>3 records</caption>
+<thead>
+<tr class="header">
+<th style="text-align: right;">morbidity_rate</th>
+<th style="text-align: left;">description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">34740</td>
+<td style="text-align: left;">Viral sinusitis (disorder)</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">19568</td>
+<td style="text-align: left;">Acute viral pharyngitis (disorder)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">16983</td>
+<td style="text-align: left;">Normal pregnancy</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- returns all possible causes of illness in order from most prevalent to least prevalent --</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">AS</span> morbidity_rate, description</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> conditions</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> (description <span class="kw">NOT</span> <span class="kw">LIKE</span> <span class="st">'%(finding)'</span> <span class="kw">AND</span> description <span class="kw">NOT</span> <span class="kw">LIKE</span> <span class="st">'%(person)'</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="kw">GROUP</span> <span class="kw">BY</span> description</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> morbidity_rate <span class="kw">DESC</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="knitsql-table">
+<table class="table table-sm table-striped">
+<caption>Displaying records 1 - 10</caption>
+<thead>
+<tr class="header">
+<th style="text-align: right;">morbidity_rate</th>
+<th style="text-align: left;">description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">34740</td>
+<td style="text-align: left;">Viral sinusitis (disorder)</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">19568</td>
+<td style="text-align: left;">Acute viral pharyngitis (disorder)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">16983</td>
+<td style="text-align: left;">Normal pregnancy</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">16028</td>
+<td style="text-align: left;">Acute bronchitis (disorder)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">8437</td>
+<td style="text-align: left;">Anemia (disorder)</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">8435</td>
+<td style="text-align: left;">Prediabetes</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">7408</td>
+<td style="text-align: left;">Hypertension</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">6137</td>
+<td style="text-align: left;">Chronic sinusitis (disorder)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">5193</td>
+<td style="text-align: left;">Miscarriage in first trimester</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">4354</td>
+<td style="text-align: left;">Streptococcal sore throat (disorder)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>As seen by the queries above, there are some similarities and differences between mortality and morbidity data in the Synthea data set verses data presented by the CDC and other online sources. The Synthea data set and the CDC both return heart disease (or a type of heart disease) as one of the top 3 causes of mortality. In the Synthea data set, COVID-19 and Cancer/malignancies are lower on the list of ‘causes of death’ than what the CDC has reported, however, they are still within the top 15 causes of death in Synthea. This observation is similar to the output for morbidity in the Synthea data set. Respiratory illnesses, pre-diabetes, and hypertension are some of the top morbidity rates when I run the query above. This result is similar to the morbidities discussed by the 2020 study of hospitalized COVID-19 patients in New York where hypertension, obesity, and diabetes were the most prevelant morbidities in patients. However, the Synthea data set also returns ‘Normal pregnancy’ and ‘Miscarriage in the first trimester’ as a morbidity. Normal pregnancy and miscarriage in the conditions data table may result in complications that lead to the death of a patient or illness, however, my references did not support this prediction related to morbidity rates.</p>
+<p>Resources</p>
+<p>Murphy SL, Kochanek KD, Xu JQ, Arias E. Mortality in the United States, 2020. NCHS Data Brief, no 427. Hyattsville, MD: National Center for Health Statistics. 2021. DOI: https://dx.doi.org/10.15620/cdc:112079</p>
+<p>Richardson, Safiya et al.&nbsp;“Presenting Characteristics, Comorbidities, and Outcomes Among 5700 Patients Hospitalized With COVID-19 in the New York City Area.” JAMAvol. 323,20 (2020): 2052-2059. doi:10.1001/jama.2020.6775</p>
+</section>
+<section id="question-2" class="level1">
+<h1>Question 2</h1>
+<ol start="2" type="1">
+<li>What is the breakdown of spending between Medicaid, Medicare and everything else in the US? Why do you think it might break down this way?</li>
+</ol>
+<p>The Centers for Medicare &amp; Medicaid Services (CMS) National Health Expenditure (NHE) data sheet breaks down spending costs for Medicare, Medicaid, private, and public health insurance in the United States for 2020.</p>
+<p>Medicare spending grew to 829.5 billion dollars in 2020. Medicaid spending grew to 671.2 billion dollars in 2020. Private health insurance spending declined 1.2% to 1,151.4 billion dollars in 2020. Out of pocket spending declined 3.7% to 388.6 billion dollars in 2020. According to CMS, Federal government spending for health care grew 36.0% in 2020 which is most likely in response to the COVID-19 pandemic (Centers for Medicare &amp; Medicaid Services 1).</p>
+<p>As more health care policies are put in place by the US government, spending on Medicare, Medicaid, and private/public health insurance will shift. Like we discussed in class, the establishment of the Affordable Care Act (ACA) dramatically changed insurance rates and how patients, providers, and payers interact. I can hypothesize that the increase in Medicare and Medicaid spending may be due to the expansion of policy as well as the growing US population that qualifies for both federally funded healthcare insurance options - for example, the baby boomer generation. We may also be seeing a decrease in out-of-pocket spending due to more affordable/inclusive insurance options for patients of all backgrounds made possible by the ACA. As shown below in the Synthea data set, Medicaid, private insurance, and Medicare are the largest spenders (top 3) which is also congruent with CMS’s data discussed above.</p>
+<p>In the Synthea data set, how would you estimate similar answers?</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Costing breakdown of Synthea data set for Medicare, Medicaid, etc. total spending --</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> name, amount_covered</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> payers</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> amount_covered <span class="kw">DESC</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="knitsql-table">
+<table class="table table-sm table-striped">
+<caption>Displaying records 1 - 10</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">name</th>
+<th style="text-align: right;">amount_covered</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Medicaid</td>
+<td style="text-align: right;">3366989355</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Blue Cross Blue Shield</td>
+<td style="text-align: right;">766629302</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Medicare</td>
+<td style="text-align: right;">658841731</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Dual Eligible</td>
+<td style="text-align: right;">61355990</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">UnitedHealthcare</td>
+<td style="text-align: right;">22530354</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Aetna</td>
+<td style="text-align: right;">21259446</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Humana</td>
+<td style="text-align: right;">20617001</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Cigna Health</td>
+<td style="text-align: right;">20456966</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Anthem</td>
+<td style="text-align: right;">19080255</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">NO_INSURANCE</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>Resources</p>
+<p>“NHE Fact Sheet.” CMS, 12 August 2022, https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/NationalHealthExpendData/NHE-Fact-Sheet. Accessed 11 September 2022.</p>
+</section>
+<section id="question-3" class="level1">
+<h1>Question 3</h1>
+<ol start="3" type="1">
+<li>What percent of Americans are estimated to be uninsured in the United States? How has this changed over the past 15 years, and why?</li>
+</ol>
+<p>An estimated 9.6% of U.S. residents, or 31.1 million people, lacked health insurance in 2021 according to estimates from the National Health Interview Survey released by the Centers for Disease Control and Prevention (CDC) (Cohen et al.&nbsp;1).</p>
+<p>In 2000 uninsured Americans accounted for 14.9% of the population and reached 16.0% in 2010. In the first quarter of 2022, the uninsured population accounts for 8.0% of US citizens. This decrease in uninsured Americans is most likely due to several government policies put into effect between 2009 and today including the Affordable Care Act which aided those below the federal poverty line to have access to care while also expanding Medicaid, and the American Rescue Plan (2021) or the COVID-19 Stimulus package which aided public health in decreasing healthcare insurance premiums (Lee, Ruhter, Peters, De Lew, Sommers 2-8). Additionally, public health plan enrollment is now available for applicants below the federal poverty line. An increase in opportunities for enrollment in coverage through federal and state funding may offer an explanation for these estimations.</p>
+<p>In the Synthea data set, how would you estimate similar answers?</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- estimate percent of uninsured patients in the Synthea data set over the last 15 years --</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> date_part(<span class="st">'year'</span>, start_year) <span class="kw">as</span> <span class="dt">year</span>, <span class="fu">COUNT</span>(<span class="kw">distinct</span>(patient)) <span class="kw">as</span> uninsured_patients</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> payer_transitions</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> payer <span class="op">=</span> <span class="st">'b1c428d6-4f07-31e0-90f0-68ffa6ff8c76'</span> <span class="kw">AND</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>start_year <span class="op">&gt;=</span> <span class="st">'2007-01-01'</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">GROUP</span> <span class="kw">BY</span> <span class="dt">year</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> <span class="dt">year</span> <span class="kw">DESC</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="knitsql-table">
+<table class="table table-sm table-striped">
+<caption>Displaying records 1 - 10</caption>
+<thead>
+<tr class="header">
+<th style="text-align: right;">year</th>
+<th style="text-align: right;">uninsured_patients</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">2022</td>
+<td style="text-align: right;">1974</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2021</td>
+<td style="text-align: right;">2580</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2020</td>
+<td style="text-align: right;">2592</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2019</td>
+<td style="text-align: right;">2486</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2018</td>
+<td style="text-align: right;">2563</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2017</td>
+<td style="text-align: right;">2519</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2016</td>
+<td style="text-align: right;">2518</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2015</td>
+<td style="text-align: right;">2741</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2014</td>
+<td style="text-align: right;">2352</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2013</td>
+<td style="text-align: right;">2690</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- estimated amount of insured patients in the data set --</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> date_part(<span class="st">'year'</span>, start_year) <span class="kw">as</span> <span class="dt">year</span>, <span class="fu">COUNT</span>(<span class="kw">distinct</span> patient) <span class="kw">as</span> insured_patients</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> payer_transitions</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> payer <span class="op">!=</span> <span class="st">'b1c428d6-4f07-31e0-90f0-68ffa6ff8c76'</span> <span class="kw">AND</span> start_year <span class="op">&gt;=</span> <span class="st">'2007-01-01'</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="kw">GROUP</span> <span class="kw">BY</span> <span class="dt">year</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> <span class="dt">year</span> <span class="kw">DESC</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="knitsql-table">
+<table class="table table-sm table-striped">
+<caption>Displaying records 1 - 10</caption>
+<thead>
+<tr class="header">
+<th style="text-align: right;">year</th>
+<th style="text-align: right;">insured_patients</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">2022</td>
+<td style="text-align: right;">11936</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2021</td>
+<td style="text-align: right;">17743</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2020</td>
+<td style="text-align: right;">17829</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2019</td>
+<td style="text-align: right;">17819</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2018</td>
+<td style="text-align: right;">17783</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2017</td>
+<td style="text-align: right;">17621</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2016</td>
+<td style="text-align: right;">17829</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2015</td>
+<td style="text-align: right;">17429</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2014</td>
+<td style="text-align: right;">17987</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2013</td>
+<td style="text-align: right;">17502</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># finding the percentage of uninsured patients in the Synthea data set using the data from the above SQL queries</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co"># for year = 2022</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>percent_uninsured_2022 <span class="ot">&lt;-</span> (<span class="dv">1974</span><span class="sc">/</span>(<span class="dv">1974</span><span class="sc">+</span><span class="dv">11936</span>))<span class="sc">*</span><span class="dv">100</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(percent_uninsured_2022)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 14.19123</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># for year = 2015</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>percent_uninsured_2015 <span class="ot">&lt;-</span> (<span class="dv">2741</span><span class="sc">/</span>(<span class="dv">2741</span><span class="sc">+</span><span class="dv">17429</span>))<span class="sc">*</span><span class="dv">100</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(percent_uninsured_2015)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 13.58949</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># for year = 2007</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>percent_uninsured_2007 <span class="ot">&lt;-</span> (<span class="dv">2532</span><span class="sc">/</span>(<span class="dv">2532</span><span class="sc">+</span><span class="dv">17924</span>))<span class="sc">*</span><span class="dv">100</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(percent_uninsured_2015)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 13.58949</code></pre>
+</div>
+</div>
+<p>Using the data generated from the SQL queries to calculate the amount of uninsured patients and insured patients (using r) in the Synthea data set, I found that the percentage of uninsured patients is similar to early 2000 data for the US population. The estimated percent of uninsured patients for 2022 (~14.2%) is notably higher than the US estimate of 8.0%.</p>
+<p>Resources</p>
+<p>Lee A, Ruhter J, Peters C, De Lew N, Sommers BD. National Uninsured Rate Reaches All-Time Low in Early 2022. (Issue Brief No.&nbsp;HP-2022-23). Office of the Assistant Secretary for Planning and Evaluation, U.S. Department of Health and Human Services. August 2022.</p>
+<p>Robin A. Cohen, Ph.D., Michael E. Martinez, M.P.H., M.H.S.A., Amy E. Cha, Ph.D., M.P.H., and Emily P. Terlizzi, M.P.H. Division of Health Interview Statistics, National Center for Health Statistics. “Health Insurance Coverage: Estimates from the National Health Interview Survey.” Centers for Disease Control and Prevention, Centers for Disease Control and Prevention, 28 July 2022, https://www.cdc.gov/nchs/nhis/healthinsurancecoverage.htm.</p>
+</section>
+<section id="question-4" class="level1">
+<h1>Question 4</h1>
+<ol start="4" type="1">
+<li>What is meant by “surprise billing” in the US? How common is this? What is the magnitude of surprise billing (eg, the range in prices billed)?</li>
+</ol>
+<p>“Surprise Billing” in the United States is an unexpected medical bill issued to a patient from an out-of-network provider or out-of-network facility. This means that a patient’s insurance does not cover any costs of care from that provider or healthcare facility. An example of a “surprise bill” is when a patient is scheduled for surgery at a facility with a provider that is covered by their insurance (or in-network), but the day of surgery, that particular surgeon is unavailable and the patient undergoes surgery with a different provider that happens to be out-of-network or not covered by their insurance. The patient receives a “surprise bill” after the payer and healthcare facility negotiate and come to a conclusion that the service is out-of-network and not covered by any entity.</p>
+<p>According to the Kaiser Family Foundation, more than any other type of hospitalizations, surgery admissions are more likely to result in an out-of-network charge (21%), followed by admissions for mental health and/or substance abuse (20%). Additionally, 23% of inpatient admissions for heart attacks resulted in a “surprise bill” and 21% of women undergoing mastectomy recieved an out-of-network charge (Millman, Jason 1). About 1 in 5 emergency visits and about 1 in 6 inpatient admissions at in-network facilities result in an out-of-network charge, putting patients at risk of a “surprise bill”. Of those 1 in 5 emergency visits, the average cost of “surprise billing” ranges from $750 to $2,600 per visit (CMS 1).</p>
+<p>How would you find evidence of this in the Synthea data set? Show whether it exists or does not exist in Synthea.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- evidence of "surprise billing" in the Synthea data set --</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="fu">min</span>(total_claim_cost), <span class="fu">max</span>(total_claim_cost), <span class="fu">AVG</span>(encounters.total_claim_cost)</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> encounters</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> encounters.payer <span class="op">!=</span> <span class="st">'b1c428d6-4f07-31e0-90f0-68ffa6ff8c76'</span> <span class="kw">AND</span> payer_coverage <span class="op">=</span> <span class="dv">0</span> <span class="co">-- seeing what encounters were not covered by insurance, but the patient was connected to some sort of insurance policy or payer id --</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="knitsql-table">
+<table class="table table-sm table-striped">
+<caption>1 records</caption>
+<thead>
+<tr class="header">
+<th style="text-align: right;">min</th>
+<th style="text-align: right;">max</th>
+<th style="text-align: right;">avg</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">311368</td>
+<td style="text-align: right;">2857.899</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>The query above is comparable to the average surprise billing cost I found online. When the patient has insurance but the payer covers zero cost associated with the out-of-network encounter, the patient is billed (see ‘WHERE’ clause). I took the average the total_claim_cost of these ‘surprise bills’ to see if it lined up the with range ($750-$2600) I found from CMS.gov. $2857.899 is greater than the average range I found, but still very close to the upper end value of $2600.</p>
+<p>Resources</p>
+<p>“Press release HHS Kicks Off New Year with New Protections from Surprise Medical Bills.” CMS, 3 January 2022, https://www.cms.gov/newsroom/press-releases/hhs-kicks-new-year-new-protections-surprise-medical-bills. Accessed 11 September 2022.</p>
+<p>Millman, Jason. “Before New Ban, the Prevalence of Surprise Bills.” KFF, 7 January 2022, https://www.kff.org/health-reform/slide/before-new-ban-the-prevalence-of-surprise-bills/. Accessed 11 September 2022.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    target: function(trigger) {
+      return trigger.previousElementSibling;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    setTimeout(function() {
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const cites = ref.parentNode.getAttribute('data-cites').split(' ');
+    tippyHover(ref, function() {
+      var popup = window.document.createElement('div');
+      cites.forEach(function(cite) {
+        var citeDiv = window.document.createElement('div');
+        citeDiv.classList.add('hanging-indent');
+        citeDiv.classList.add('csl-entry');
+        var biblioDiv = window.document.getElementById('ref-' + cite);
+        if (biblioDiv) {
+          citeDiv.innerHTML = biblioDiv.innerHTML;
+        }
+        popup.appendChild(citeDiv);
+      });
+      return popup.innerHTML;
+    });
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>

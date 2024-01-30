@@ -1,0 +1,302 @@
+---
+title: "Joelle_Fitzgerald_CDS_PI_QI_Homework"
+author: "Joelle Fitzgerald"
+date: "10/6/2022"
+output: html_document
+---
+
+## Asthma Patients in the SyntheticMGUH Data Set
+
+## Patient Population
+
+  Asthma is a condition marked by aggravation towards an outside stimulus which results in airway narrowing and swelling triggering a patient to cough with a wheezing sound causing shortness of breath and airway obstruction if left untreated. 
+
+```{r}
+#| warning: false
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticMGUH2022",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = key_get(service = "syntheticmguh", 
+                             username = "hids502_student"),
+          bigint = "numeric")
+# Use this to set a default connection for every SQL chunk
+# There seems to be some sort of bug in Quarto that requires this
+knitr::opts_chunk$set(connection = "con")
+```
+
+## Question 1 & 2: 
+  
+  1. Define your population explicitly
+    a. In text you should be able to describe the criteria that you are using in the report         to identify asthmatics
+    b. Your code should match your text
+  2. Describe the asthma population
+    a. At a minimum their age, gender, race and smoking status
+    
+  The asthma patient population includes all patients that have asthma management careplans, have a clinical "Asthma" or "Childhood Asthma" diagnosis, have been prescribed rescue and maintenance asthma medications, and have been seen by a provider at an encounter for asthma or asthmatic symptoms as described in clinical notes. Below, a CTE was created to gather an asthma patient population from the Synthea dataset called 'asthma_patients'. This returns the count of the total asthma patient population equal to 1379 patients. From 'asthma_patients', I assessed population demographics in the second code chunk including race, gender, age (birthdate/deathdate), and patient smoking status (see returned table below).
+
+```{sql, connection=con}
+-- CTE to hold asthma patient population --
+WITH asthma_patients AS (
+    SELECT distinct(patient)
+      FROM medications
+      WHERE (medications.code = '895994' OR medications.code = '2123111')
+  UNION
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.description LIKE '%Asthma%' OR careplans.description LIKE '%asthma'
+  UNION
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE 'Asthma' OR conditions.description LIKE '%asthma'
+  UNION
+    SELECT distinct(patient)
+      FROM encounters
+      WHERE encounters.description LIKE '%Asthma%' OR encounters.reasondescription LIKE '%asthma%'
+  UNION
+    SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%asthma%'
+)
+SELECT COUNT(distinct patient)
+FROM asthma_patients
+```
+  
+  The asthma_patient population mostly consists of asain females and males. Some of the asthma_patient population are former smokers and ages range from born in the 1920s to 2022. 
+
+```{sql, connection=con}
+WITH asthma_patients AS (
+    SELECT distinct(patient)
+      FROM medications
+      WHERE (medications.code = '895994' OR medications.code = '2123111')
+  UNION
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.description LIKE '%Asthma%' OR careplans.description LIKE '%asthma'
+  UNION
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE 'Asthma' OR conditions.description LIKE '%asthma'
+  UNION
+    SELECT distinct(patient)
+      FROM encounters
+      WHERE encounters.description LIKE '%Asthma%' OR encounters.reasondescription LIKE '%asthma%'
+  UNION
+    SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%asthma%'
+)
+-- selecting specific demographic data from asthma_patients --
+, asthma_demographics AS (
+    SELECT patients.race, patients.gender, patients.birthdate, patients.deathdate, observations.description, observations.value
+      FROM patients
+      LEFT JOIN asthma_patients on patients.id = asthma_patients.patient
+      LEFT JOIN observations on patients.id = observations.patient
+        WHERE observations.description LIKE '%smoking status%'
+      
+)
+SELECT asthma_demographics.race, asthma_demographics.gender, asthma_demographics.description, asthma_demographics.value, asthma_demographics.birthdate, asthma_demographics.deathdate
+FROM asthma_demographics
+GROUP BY asthma_demographics.race, asthma_demographics.gender, asthma_demographics.description, asthma_demographics.value, asthma_demographics.birthdate, asthma_demographics.deathdate
+
+```
+## Question 3: 
+   3. Determine what proportion have an asthma care plan
+   
+  In the code below, I assessed what porportion of asthma_patients have an asthma careplan. From the total population of 1379 patients, 1236 patients have an asthma careplan in the Synthea dataset. About 90% of asthma_patients have an asthma careplan. 
+
+```{sql, connection=con}
+WITH asthma_patients AS (
+    SELECT distinct(patient)
+      FROM medications
+      WHERE (medications.code = '895994' OR medications.code = '2123111')
+  UNION 
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.description LIKE '%Asthma%' OR careplans.description LIKE '%asthma'
+  UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE 'Asthma' OR conditions.description LIKE '%asthma'
+  UNION 
+    SELECT distinct(patient)
+      FROM encounters
+      WHERE encounters.description LIKE '%Asthma%' OR encounters.reasondescription LIKE '%asthma%'
+  UNION 
+    SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%asthma%'
+  
+)
+-- selects patients with asthma careplans --
+, asthma_careplans as (
+  SELECT distinct(patient)
+  FROM careplans 
+  WHERE careplans.description LIKE '%Asthma%' OR careplans.description LIKE '%asthma'
+)
+-- total asthma patients --
+, total_population as (
+  select distinct(patient)
+  FROM asthma_patients
+)
+-- returns count of all patients who have asthma careplans and the total pop count --
+SELECT (select count(distinct(asthma_careplans)) as asthma_careplan_count), (select count(distinct(total_population)) as total_pop_count) FROM asthma_careplans, total_population
+```
+
+## Question 4:
+   4. Determine what proportion have a maintenance and rescue inhaler
+  
+  To determine the proportion of patients who have been prescribed a maintenance and rescue inhaler, I divided the total population of asthma patients into patients prescribed rescue inhalers as well as patients prescribed maintenance inhalers. By doing this I extracted a specific count for patients using rescue inhalers, maintenance inhalers, both inhalers, as well as the total patient population count. Of 1379 patients, 1236 out of 1379 patients use both a maintenance and rescue inhaler which is about 90% of patients in the Synthea dataset. 
+
+
+```{sql, connection=con}
+WITH asthma_patients AS (
+    SELECT distinct(patient)
+      FROM medications
+      WHERE (medications.code = '895994' OR medications.code = '2123111')
+  UNION 
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.description LIKE '%Asthma%' OR careplans.description LIKE '%asthma'
+  UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE 'Asthma' OR conditions.description LIKE '%asthma'
+  UNION 
+    SELECT distinct(patient)
+      FROM encounters
+      WHERE encounters.description LIKE '%Asthma%' OR encounters.reasondescription LIKE '%asthma%'
+  UNION 
+    SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%asthma%'
+  
+)
+-- asthma patients using rescue inhalers --
+, asthma_rescue_inhaler as (
+  SELECT distinct(asthma_patients.patient)
+  FROM asthma_patients
+  LEFT JOIN medications on medications.patient = asthma_patients.patient
+  WHERE (medications.code = '2123111')
+)
+-- asthma patients using maintenance inhalers --
+, asthma_maintenance_inhaler as (
+  SELECT distinct(asthma_patients.patient)
+  FROM asthma_patients
+  LEFT JOIN medications on medications.patient = asthma_patients.patient
+  WHERE (medications.code = '895994')
+)
+-- total population of asthma patients using both rescue and maintenance inhalers --
+, inhaler_population as (
+  SELECT distinct(asthma_maintenance_inhaler.patient)
+  FROM asthma_maintenance_inhaler 
+  LEFT JOIN asthma_rescue_inhaler on asthma_maintenance_inhaler.patient = asthma_rescue_inhaler.patient
+
+)
+-- total asthma patient pop --
+, total_population as (
+  SELECT distinct(patient)
+  FROM asthma_patients
+)
+-- returns all counts of above selections --
+SELECT 
+(SELECT count(*) FROM asthma_rescue_inhaler) as asthma_rescue_inhaler_count,
+(SELECT count(*) FROM asthma_maintenance_inhaler) as asthma_maintenance_inhaler_count,
+(SELECT count(*) FROM inhaler_population) as inhaler_population_count,
+(SELECT count(*) FROM total_population) as total_pop_count
+```
+
+
+## Question 5:
+  5. Determine what proportion have received the vaccination in the preceding 12 months
+  
+  The code chunk below returns the count of asthma patients who have recieved a pneumococcal vaccination in the last year (“Pneumococcal conjugate PCV 13”). Of 1379 patients, 23 asthma patients have received the PCV 13 vaccine within the past 12 months. This accounts for about 1.66% of the total asthma patient population.
+
+```{sql, connection=con}
+WITH asthma_patients AS (
+    SELECT distinct(patient)
+      FROM medications
+      WHERE (medications.code = '895994' OR medications.code = '2123111')
+  UNION 
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.description LIKE '%Asthma%' OR careplans.description LIKE '%asthma'
+  UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE 'Asthma' OR conditions.description LIKE '%asthma'
+  UNION 
+    SELECT distinct(patient)
+      FROM encounters
+      WHERE encounters.description LIKE '%Asthma%' OR encounters.reasondescription LIKE '%asthma%'
+  UNION 
+    SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%asthma%'
+  
+)
+-- stores all asthma patients who have recieved PCV 13 vaccine within the past 12mo --
+, asthma_vaccine as (
+  SELECT distinct(asthma_patients.patient)
+      FROM asthma_patients
+      LEFT JOIN immunizations on immunizations.patient = asthma_patients.patient
+      WHERE immunizations.description LIKE '%Pneumococcal conjugate PCV 13' AND (immunizations.date <= '09-24-2020' AND immunizations.date >= '09-24-2019')
+)
+, total_population as (
+  select distinct(patient)
+  FROM asthma_patients
+)
+SELECT 
+(select count(*) from asthma_vaccine) as asthma_vaccine_count,
+(select count(*) from total_population) as total_pop_count
+```
+
+
+## Optional Question:
+
+  1. Can you determine a way to indicate how "active" (sick) an asthma patient has been over     the past 12 months. 
+  
+  To determine how many asthma patients have been "active" or sick over the past year, I extracted the count of how many asthma patient careplans have not been resolved. An active careplan is indicated by a careplan where the stop date is left blank or null. Out of 1379 patients, 1170 patients have an active careplan. This accounts for about 85% of asthma patients. 
+
+```{sql, connection=con}
+WITH asthma_patients AS (
+    SELECT distinct(patient)
+      FROM medications
+      WHERE (medications.code = '895994' OR medications.code = '2123111')
+  UNION 
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.description LIKE '%Asthma%' OR careplans.description LIKE '%asthma'
+  UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE 'Asthma' OR conditions.description LIKE '%asthma'
+  UNION 
+    SELECT distinct(patient)
+      FROM encounters
+      WHERE encounters.description LIKE '%Asthma%' OR encounters.reasondescription LIKE '%asthma%'
+  UNION 
+    SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%asthma%'
+  
+)
+-- active careplans for asthma patients --
+, active_asthma_careplans as (
+  SELECT distinct(patient)
+  FROM careplans 
+  WHERE (careplans.description LIKE '%Asthma%' OR careplans.description LIKE '%asthma') AND careplans.stop IS NULL
+)
+, total_population as (
+  SELECT distinct(patient)
+  FROM asthma_patients
+)
+-- returns count of all active asthma careplans --
+SELECT (select count(distinct(active_asthma_careplans)) as active_asthma_careplan_count), (select count(distinct(total_population)) as total_pop_count) FROM active_asthma_careplans, total_population
+```
+
+

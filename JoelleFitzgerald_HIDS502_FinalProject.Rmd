@@ -1,0 +1,768 @@
+---
+title: "JoelleFitzgerald_HIDS502_FinalProject"
+author: "Joelle Fitzgerald"
+date: "11/27/2022"
+output: html_document
+---
+
+# HIDS 502 Final Project: QI Analyst 
+
+## Prevention of emergency department hospital admissions in Congestive Heart Failure (CHF) patients through routine nutritionist counseling: a pilot quality improvement program.
+
+### Group B – Joelle Fitzgerald, Adam Li, Ansel (Yuan) Lian
+#### QI Analyst: Joelle Fitzgerald
+
+
+```{r}
+#| warning: false
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticMGUH2022",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = key_get(service = "syntheticmguh", 
+                             username = "hids502_student"),
+          bigint = "numeric")
+# Use this to set a default connection for every SQL chunk
+# There seems to be some sort of bug in Quarto that requires this
+knitr::opts_chunk$set(connection = "con")
+```
+
+## Introduction 
+
+  Congestive Heart Failure (CHF) is a progressive, terminal disease characterized by weakening of the heart muscle and impaired pumping of blood to the organs of the body. When the heart cannot pump effectively and is weakened, an individual progressively experiences diminishing energy levels, decreased ability to perform activities of daily living, impaired mobility, and symptoms of organ failure including shortness of breath (American Heart Association, 2019). The Centers for Disease Control and Prevention (CDC) (2022) reports that approximately 6.2 million adults in the United States have been diagnosed with CHF. Care for exacerbations of CHF is typically emergent and expensive. Severe symptoms of CHF leading to hospitalization often result from avoidable behaviors and lifestyle choices such as high dietary sodium leading to excessive water retention, overexertion that leads to unexpected fatigue, and lack of adherence to prescribed medications (Tsuyuki et al., 2001). The estimated incremental national expenditure of CHF care and medications in the United States is approximately $22.3 billion each year (Bhatnagar, Roshni, et al., 2022). Additionally, costs associated with hospital readmissions within 30 days are not reimbursed (US Centers for Medicare and Medicaid, 2019). 
+ 
+  Knowing this, it is important CHF patient care is aimed at providing sufficient patient education and prompt intervention to prevent emergent CHF patient hospital admissions and unnecessary expenditures that place a strain on the hospital system and patient wellbeing. Our pilot program aims to identify Congestive Heart Failure patients who may be at-risk for hospital readmission and coordinate routine nutritionist counseling for a heart healthy diet as a new standard of preventative care. With this implementation of preemptive dietary counseling, we strive to increase patient compliance for following a low sodium diet avoiding possible fluid overload, and ultimately reducing a patient’s risk for emergency hospital admission related to severe CHF symptoms. 
+
+## Patient Population
+ 
+Deficiency/Issue Addressed: CHF patients at-risk for emergency hospital admission due to inadequate CHF care management and lifestyle behaviors, specifically dietary compliance.
+
+  To identify patients who may benefit from dietary counseling to avoid CHF symptom excerbation and disease progression, we will be looking at patients who have a CHF careplan, CHF diagnosed condition, and/or encounter note indicating CHF as a current problem. From this cohort, we will identify evidence that a patient may be at risk for CHF exacerbation indicating need for intervention such as body weight changes, imbalanced sodium levels, recent blood pressure measurements, and recent ED visit. 
+  
+  With evidence of possible mismanaged disease in our CHF patient cohort, we can extract demographic, lifestyle, and medication information that may also be relevant when describing the current state our patient population.
+
+### Initial Patient Population: CHF Careplan, Diagnosed Condition, and Encounter Note
+```{sql, connection=con}
+-- finding total congestive heart failure patient count --
+-- creating CTE to hold CHF patient population including all patients that have a careplan, diagnosed condition, and/or encounter note indicating CHF --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+   -- Union statement to combine CHF patient careplans with patients diagnosed with CHF condition --
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  -- Union statement to combine CHF patient careplans and patients diagnosed with CHF condition with CHF patient encounters --
+  UNION 
+    SELECT distinct(patient)
+      FROM encounters
+      WHERE encounters.reasondescription LIKE '%congestive heart failure%' OR encounters.reasoncode = '88805009'
+  -- Union statement to combine CHF patient careplans and patients diagnosed with CHF condition with CHF patient notes --
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+-- returns total CHF patient count --
+SELECT (select count(distinct(CHF_patients)) as pt_count) FROM CHF_patients
+```
+
+```{sql connection=con}
+-- returns the code for CHF --
+SELECT reasoncode
+FROM careplans 
+WHERE careplans.reasondescription LIKE '%congestive heart failure%' 
+```
+
+```{sql connection=con}
+-- returns total count of patients with CHF established care plans --
+SELECT count(distinct patient)
+FROM careplans 
+WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+```
+```{sql connection=con}
+-- returns total count of patients with CHF as a diagnosed condition --
+SELECT count(distinct patient)
+FROM conditions 
+WHERE conditions.description LIKE '%congestive heart failure%'
+```
+```{sql connection=con}
+-- returns total count of patients with CHF medical notes --
+SELECT count(distinct patient)
+FROM notes 
+WHERE note_text LIKE '%congestive heart failure%'
+```
+  
+  There are a total of 847 patients in the Synthea database that have a diagnosed condition, careplans, and/or encounter note indicative of CHF. 842 patients have an established care plan for managing their CHF while 5 patients do not have careplans, but have had CHF noted as a diagnosed condition or in an encounter note. 
+  
+### CHF Patient Body Weight Management 
+  
+```{sql connection=con}
+--- add drop table if exists to refresh temporary table created ---
+DROP TABLE IF EXISTS CHF_patients
+```
+
+```{sql connection=con} 
+-- local table to hold initial patient population identified to have a diagnosis of CHF --
+CREATE LOCAL TEMP TABLE CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+  
+)
+```
+
+```{sql connection=con}
+-- local table 'patient_weights' returns body weight observations for each patient where not null --
+CREATE LOCAL TEMP TABLE patient_weights AS (
+  SELECT weights.* 
+  FROM (
+  -- finding CHF patients with body weight observation recorded --
+    SELECT DISTINCT patient FROM observations 
+    WHERE description LIKE '%Body Weight%'
+    AND patient in (SELECT * FROM CHF_patients)
+  ) patients
+  -- using a lateral join (researched on Google in collaboration with teammates) to combine results from query above matching CHF patients with body weight recorded at an encounter --
+  JOIN LATERAL (
+    SELECT *
+    FROM observations 
+    WHERE observations.patient = patients.patient
+    AND description LIKE '%Body Weight%'
+    AND patient in (SELECT * FROM CHF_patients)
+    ORDER BY observations.date -- ordering by observation date --
+    LIMIT 2
+  ) weights ON TRUE
+)
+```
+
+```{sql connection=con}
+-- visualizing patient_weights CTE created above --
+SELECT * FROM patient_weights
+```
+```{sql connection=con}
+-- calculating weight change from first and last body weight observation per patient using LAG function --
+SELECT * FROM (
+SELECT patient, CAST(value AS NUMERIC) - lag(CAST(value AS NUMERIC)) OVER (PARTITION BY patient) AS weight_change_in_kg
+FROM patient_weights
+) AS temp
+-- returning weight changes greater than 0.0 --
+WHERE weight_change_in_kg IS NOT NULL AND weight_change_in_kg > '0.0'
+```
+
+```{sql connection=con}
+-- returns total count of patients that experienced a weight change greater than 0.0kg --
+SELECT count(distinct patient) as patient_count_weight_change_in_kg FROM (
+SELECT patient, CAST(value AS NUMERIC) - lag(CAST(value AS NUMERIC)) OVER (PARTITION BY patient) AS weight_change_in_kg
+FROM patient_weights
+) AS temp
+WHERE weight_change_in_kg IS NOT NULL AND weight_change_in_kg > '0.0'
+```
+
+  Of 847 distinct patients in the dataset, 222 patients have experienced body weight changes. Knowing body weight change in CHF patients may be an indicator of fluid accumulation leading to CHF symptom exacerbation, these 222 patients may be good candidates for a nutrition counseling referral.
+
+```{sql connection=con}
+-- (modifying query above) returns patient count from last query and average body weight change among all CHF patients identified to have body weight measurements at their encounters --
+SELECT count(distinct encounters.encounterclass), encounters.encounterclass, count(distinct temp.patient) as patient_count_weight_change_in_kg, AVG(weight_change_in_kg) as avg_wt_change
+FROM (SELECT patient, CAST(value AS NUMERIC) - lag(CAST(value AS NUMERIC)) OVER (PARTITION BY patient) AS weight_change_in_kg
+FROM patient_weights
+) AS temp, CHF_patients
+INNER JOIN encounters on CHF_patients.patient = encounters.patient
+WHERE weight_change_in_kg IS NOT NULL AND weight_change_in_kg > '0.0' 
+GROUP BY encounters.encounterclass
+```
+```{sql connection=con}
+-- (modifying query above) returns average body weight among all CHF patients identified to have body weight measurement observations at their encounters --
+SELECT count(distinct encounters.encounterclass), encounters.encounterclass,  AVG(CAST(patient_weights.value as NUMERIC)) as avg_wt
+FROM patient_weights, CHF_patients
+INNER JOIN encounters on CHF_patients.patient = encounters.patient
+GROUP BY encounters.encounterclass
+```
+  The average weight change between all visits for CHF patients is about 2.4kg or 5.3lbs for patients admitted to the ED and seen in an inpatient setting, outpatient setting, for a wellness visit, at urgent care, and/or ambulatory care. This body weight change indicates CHF symptom exacerbation and  need for patient re-education, additional medication management, and gives us an idea of when a patient may seek medical attention. It is important to note that, according to the American Heart Association, a weight gain of 5 or more pounds within a week for CHF patients signifies disease exacerbation and progression which may lead to emergency hospital admission (American Heart Association, 2019). Inhibiting exacerbation through preventative medicine such as referring patients to a nutritionist will aid CHF patients in maintaining an adequate heart-healthy diet and avoiding fluid accumulation and unwanted weight gain. Sustaining proper dietary compliance with appropriate mineral (salt) and fluid consumption, CHF patients will be able to avoid body weight fluctuations that lead to fluid accumulation, symptom exacerbation, and hospital admission. 
+
+
+### CHF Patient Demographics and Behavior Trends When Admitted to the ED
+
+```{sql, connection=con}
+-- CHF patient population CTE used above --
+-- Note: I decided to keep the initial CHF_patient CTE for the following queries instead of using the local temp table above, so I could keep my queries organized and thought process straight --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+, CHF_demographics as (
+-- selecting specific demographic and lifestyle data from CHF_patients --
+SELECT distinct patients.id, patients.race, patients.gender,
+-- calculating patient age by subtracting current year (2020) from patient's date of birth --
+DATE_PART('year', age('09-24-2020', patients.birthdate)) as age, observations.value as smoking_status
+FROM patients
+-- matching patients from initial CHF patient cohort from patients table and observations table --
+ LEFT JOIN CHF_patients on patients.id = CHF_patients.patient
+ LEFT JOIN observations on patients.id = observations.patient
+  WHERE patients.birthdate IS NOT NULL
+  -- extracts patient smoking status/lifetsyle behaviors --
+  AND observations.description LIKE '%smoking status%'
+  GROUP BY patients.id, patients.race, patients.gender, age, smoking_status
+)
+-- CTE to extract CHF patient encounters --
+, CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasoncode = '88805009' OR encounters.reasondescription LIKE '%congestive heart failure%' 
+)
+-- returns demographic information (age, gender, race), patient counts for each unique demographic/behavior and encounter observation --
+SELECT count(distinct CHF_encounters.patient) as pt_count, CHF_demographics.age, CHF_demographics.race, CHF_demographics.gender, CHF_demographics.smoking_status, CHF_encounters.encounterclass
+FROM CHF_demographics
+LEFT JOIN CHF_encounters on CHF_demographics.id = CHF_encounters.patient
+WHERE CHF_encounters.encounterclass LIKE '%emergency%' -- returns specifically ED visit patient information --
+GROUP BY CHF_demographics.age, CHF_encounters.encounterclass, CHF_demographics.race, CHF_demographics.gender, CHF_demographics.smoking_status
+ORDER BY pt_count DESC -- returns patient count for each category desc. to identify patient trends for most-frequent ED visits --
+
+```
+
+
+```{sql, connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+, CHF_demographics as (
+-- selecting specific demographic and lifestyle data from CHF_patients --
+SELECT distinct patients.id, patients.race, patients.gender,
+-- calculating patient age by subtracting current year (2020) from patient's date of birth --
+DATE_PART('year', age('09-24-2020', patients.birthdate)) as age, observations.value as smoking_status
+FROM patients
+-- matching patients from initial CHF patient cohort from patients table and observations table --
+ INNER JOIN CHF_patients on patients.id = CHF_patients.patient
+ LEFT JOIN observations on patients.id = observations.patient
+  WHERE patients.birthdate IS NOT NULL
+  -- extracts patient smoking status/lifetsyle behaviors --
+  AND observations.description LIKE '%smoking status%'
+  GROUP BY patients.id, patients.race, patients.gender, age, smoking_status
+)
+-- returns count breakdown of female and male CHF observations from our cohort --
+SELECT count(distinct CHF_patients.patient), CHF_demographics.gender
+FROM CHF_demographics, CHF_patients
+GROUP BY CHF_demographics.gender
+```
+
+```{sql, connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+, CHF_demographics as (
+-- selecting specific demographic and lifestyle data from CHF_patients --
+SELECT distinct patients.id, patients.race, patients.gender,
+-- calculating patient age by subtracting current year (2020) from patient's date of birth --
+DATE_PART('year', age('09-24-2020', patients.birthdate)) as age, observations.value as smoking_status
+FROM patients
+-- matching patients from initial CHF patient cohort from patients table and observations table --
+ INNER JOIN CHF_patients on patients.id = CHF_patients.patient
+ LEFT JOIN observations on patients.id = observations.patient
+  WHERE patients.birthdate IS NOT NULL
+  -- extracts patient smoking status/lifetsyle behaviors --
+  AND observations.description LIKE '%smoking status%'
+  GROUP BY patients.id, patients.race, patients.gender, age, smoking_status
+)
+-- returns count of patients 50+ years of age --
+SELECT count(distinct CHF_demographics.id) as pt_age_fifty_and_over
+FROM CHF_demographics, CHF_patients
+WHERE CHF_demographics.age >= '50' 
+```
+```{sql, connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+, CHF_demographics as (
+-- selecting specific demographic and lifestyle data from CHF_patients --
+SELECT distinct patients.id, patients.race, patients.gender,
+-- calculating patient age by subtracting current year (2020) from patient's date of birth --
+DATE_PART('year', age('09-24-2020', patients.birthdate)) as age, observations.value as smoking_status
+FROM patients
+-- matching patients from initial CHF patient cohort from patients table and observations table --
+ INNER JOIN CHF_patients on patients.id = CHF_patients.patient
+ LEFT JOIN observations on patients.id = observations.patient
+  WHERE patients.birthdate IS NOT NULL
+  -- extracts patient smoking status/lifetsyle behaviors --
+  AND observations.description LIKE '%smoking status%'
+  GROUP BY patients.id, patients.race, patients.gender, age, smoking_status
+)
+-- returns count of patients less than 50 years of age --
+SELECT count(distinct CHF_demographics.id) as pt_age_under_fifty
+FROM CHF_demographics, CHF_patients
+WHERE CHF_demographics.age < '50' 
+```
+```{sql, connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+, CHF_demographics as (
+-- selecting specific demographic and lifestyle data from CHF_patients --
+SELECT distinct patients.id, patients.race, patients.gender,
+-- calculating patient age by subtracting current year (2020) from patient's date of birth --
+DATE_PART('year', age('09-24-2020', patients.birthdate)) as age, observations.value as smoking_status
+FROM patients
+-- matching patients from initial CHF patient cohort from patients table and observations table --
+ INNER JOIN CHF_patients on patients.id = CHF_patients.patient
+ LEFT JOIN observations on patients.id = observations.patient
+  WHERE patients.birthdate IS NOT NULL
+  -- extracts patient smoking status/lifetsyle behaviors --
+  AND observations.description LIKE '%smoking status%'
+  GROUP BY patients.id, patients.race, patients.gender, age, smoking_status
+)
+-- returns count of patients 65+ years of age --
+SELECT count(distinct CHF_demographics.id) as pt_age_eligible_for_medicare
+FROM CHF_demographics, CHF_patients
+WHERE CHF_demographics.age >= '65' 
+```
+```{sql, connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+, CHF_demographics as (
+-- selecting specific demographic and lifestyle data from CHF_patients --
+SELECT distinct patients.id, patients.race, patients.gender,
+-- calculating patient age by subtracting current year (2020) from patient's date of birth --
+DATE_PART('year', age('09-24-2020', patients.birthdate)) as age, observations.value as smoking_status
+FROM patients
+-- matching patients from initial CHF patient cohort from patients table and observations table --
+ INNER JOIN CHF_patients on patients.id = CHF_patients.patient
+ LEFT JOIN observations on patients.id = observations.patient
+  WHERE patients.birthdate IS NOT NULL
+  -- extracts patient smoking status/lifetsyle behaviors --
+  AND observations.description LIKE '%smoking status%'
+  GROUP BY patients.id, patients.race, patients.gender, age, smoking_status
+)
+-- returns average patient age for CHF cohort --
+SELECT AVG(CAST(CHF_demographics.age as NUMERIC)) as avg_pt_age, CHF_demographics.gender
+FROM CHF_demographics
+GROUP BY CHF_demographics.gender
+
+```
+
+```{sql, connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+, CHF_demographics as (
+-- selecting specific demographic and lifestyle data from CHF_patients --
+SELECT distinct patients.id, patients.race, patients.gender,
+-- calculating patient age by subtracting current year (2020) from patient's date of birth --
+DATE_PART('year', age('09-24-2020', patients.birthdate)) as age, observations.value as smoking_status
+FROM patients
+-- matching patients from initial CHF patient cohort from patients table and observations table --
+ INNER JOIN CHF_patients on patients.id = CHF_patients.patient
+ LEFT JOIN observations on patients.id = observations.patient
+  WHERE patients.birthdate IS NOT NULL
+  -- extracts patient smoking status/lifetsyle behaviors --
+  AND observations.description LIKE '%smoking status%'
+  GROUP BY patients.id, patients.race, patients.gender, age, smoking_status
+)
+-- returns count of patients over 50 years of age --
+SELECT count(distinct CHF_demographics.id) as pt_count, CHF_demographics.smoking_status
+FROM CHF_demographics
+GROUP BY CHF_demographics.smoking_status
+```
+
+```{sql, connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+, CHF_demographics as (
+-- selecting specific demographic and lifestyle data from CHF_patients --
+SELECT distinct patients.id, patients.race, patients.gender,
+-- calculating patient age by subtracting current year (2020) from patient's date of birth --
+DATE_PART('year', age('09-24-2020', patients.birthdate)) as age, observations.value as smoking_status
+FROM patients
+-- matching patients from initial CHF patient cohort from patients table and observations table --
+ INNER JOIN CHF_patients on patients.id = CHF_patients.patient
+ LEFT JOIN observations on patients.id = observations.patient
+  WHERE patients.birthdate IS NOT NULL
+  -- extracts patient smoking status/lifetsyle behaviors --
+  AND observations.description LIKE '%smoking status%'
+  GROUP BY patients.id, patients.race, patients.gender, age, smoking_status
+)
+-- returns count of patients over 50 years of age --
+SELECT count(distinct CHF_demographics.id), CHF_demographics.race
+FROM CHF_demographics
+GROUP BY CHF_demographics.race
+```
+
+  The tables above returns the demographic and smoking status of CHF patients in the Synthea dataset. From this data, we can gauge common demographic and lifestyle trends in CHF patient ED admissions. In general, the count of patients who have been seen in the ED begin to rise as age increases. Of our 847 patients, 31 patients are younger than 50 years old and 816 are 50+ years of age. It is also interesting to note, 706 patients are 65+ years old - the initial age to enroll in Medicare. This may be important when analyzing CHF patient-associated expenditure as we already know hospital readmission within 30 days are not reimbursed and Medicare rates are fixed and reimbursement rates are lower than private insurance. Additionally, Medicare patients tend to be more expensive as they include an older population at higher risk for chronic illness and frequent medical care visits (American Hospital Association, 2020). This information is significant in highlighting a need to explore areas for quality improvement in CHF patient care. 
+  
+  The average age of CHF patients is 82 years old for Females and 81 years old for Males. Looking at patient lifestyle behaviors, 7 CHF patients are current smokers, 345 are former smokers, and 505 have never smoked. Grouping CHF patients by race, we identified African American/black and white patients have the highest incidence of CHF diagnosis. There was no significant difference between number of females verses males diagnosed with CHF. Identifying areas where there are high patient counts (pt_count) could aid our hospital organization in pin-pointing patients at greater risk for CHF symptom exacerbation and possible ED admission early on in the care management process.
+  
+### CHF Patient Visit Breakdown
+  
+```{sql connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+-- CTE to extract CHF patient encounters --
+, CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass, encounters.start
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasoncode = '88805009' OR encounters.reasondescription LIKE '%congestive heart failure%' 
+)
+SELECT count(distinct CHF_encounters.patient) as CHF_patient_count, CHF_encounters.description, CHF_encounters.encounterclass
+FROM CHF_encounters
+-- returns CHF patient visits within the past 12mo --
+WHERE (CHF_encounters.start <= '09-24-2020' AND CHF_encounters.start >= '09-24-2019')
+GROUP BY CHF_encounters.description, CHF_encounters.encounterclass
+```
+
+
+```{sql connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+-- CTE to extract CHF patient encounters --
+, CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasoncode = '88805009' OR encounters.reasondescription LIKE '%congestive heart failure%'
+)
+SELECT count(distinct CHF_encounters.patient) as CHF_patient_count, CHF_encounters.description, CHF_encounters.encounterclass
+FROM CHF_encounters
+GROUP BY CHF_encounters.description, CHF_encounters.encounterclass
+```
+
+  Over the last 12 months, there have been a total of 46 patients admitted to the ED. There have been 774 total CHF patients seen in the ED for visits in the Synthea dataset. It is important to note the patient count for both emergency visits and inpatient admission to the Intensive Care Unit (ICU) are the same for our CHF cohort. This could provide evidence of serious symptom exacerbation for CHF patients (leading to the need for intensive care and additional usage of hospital resources) and provide reason for necessary intervention in order to improve patient health management.
+
+### CHF Patient Common Medications 
+
+```{sql connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+-- CTE to extract CHF patient encounters --
+, CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasoncode = '88805009' OR encounters.reasondescription LIKE '%congestive heart failure%'
+)
+-- CTE to extract specific medications used to treat our CHF patient cohort --
+, CHF_medications as (
+  SELECT distinct(CHF_patients.patient), medications.description, medications.reasondescription
+  FROM CHF_patients
+  LEFT JOIN medications on CHF_patients.patient = medications.patient
+  WHERE medications.reasondescription LIKE '%congestive heart failure%'
+)
+-- returns encounter and medication information for CHF patient cohort --
+SELECT count(distinct CHF_encounters.patient) as CHF_patient_encounter_count, CHF_encounters.description, CHF_encounters.encounterclass, count(distinct CHF_medications.patient) as CHF_patient_med_count, CHF_medications.description, CHF_medications.reasondescription
+FROM CHF_encounters, CHF_medications
+WHERE CHF_encounters.encounterclass LIKE '%emergency'
+GROUP BY CHF_encounters.description, CHF_encounters.encounterclass, CHF_medications.description, CHF_medications.reasondescription
+```
+  The query above explores the common medications associated with CHF patient admission to the ED. It is important to note that the medication with the highest patient count, Furosemide, is a common diuretic medication used to treat excess fluid retention in patients. Observing a high patient count for a diuretic medication supports what we have gleaned from our data above noting a high incidence of CHF patient weight fluctuation, weight gain, and emergency hospital admission. An intervention incorporated within standard of care focused on preventing fluid accumulation such as nutritionist counseling appointment may assist with preventing inadequately managed disease in CHF patients.
+
+### Serum Sodium Control
+
+```{sql connection=con}
+-- CTE to extract CHF patient encounters --
+WITH CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasondescription LIKE '%congestive heart failure%' and encounters.encounterclass LIKE '%emergency' 
+)
+-- CTE to hold CHF patient sodium observations for patient encounters -- 
+, CHF_observations as (
+  SELECT distinct(CHF_encounters.patient), observations.value, observations.description
+  FROM CHF_encounters
+  LEFT JOIN observations on CHF_encounters.patient = observations.patient
+  -- returns abnormal/out-of-range serum sodium observations for CHF patients --
+  WHERE observations.description LIKE '%Sodium%' AND (observations.value < '135.0' OR observations.value > '145.0') -- no observations recorded out of range --
+)
+SELECT count(distinct CHF_encounters.patient) as CHF_patient_encounter_count, CHF_encounters.description, CHF_encounters.encounterclass, count(distinct CHF_observations.patient) as CHF_observ_count, CHF_observations.description, CHF_observations.value
+FROM CHF_encounters, CHF_observations
+GROUP BY CHF_encounters.description, CHF_encounters.encounterclass, CHF_observations.description, CHF_observations.value
+--ORDER BY CHF_observations.value DESC
+
+```
+
+```{sql connection=con}
+-- CTE to extract CHF patient encounters --
+WITH CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasondescription LIKE '%congestive heart failure%' and encounters.encounterclass LIKE '%emergency' 
+)
+-- CTE to hold CHF patient sodium observations for patient encounters -- 
+, CHF_observations as (
+  SELECT distinct(CHF_encounters.patient), observations.value, observations.description
+  FROM CHF_encounters
+  LEFT JOIN observations on CHF_encounters.patient = observations.patient
+  WHERE observations.description LIKE '%Sodium%' 
+)
+-- returns average sodium level for CHF cohort --
+SELECT AVG(CAST(CHF_observations.value as NUMERIC)) as avg_sodium 
+FROM CHF_observations
+
+
+```
+  Serum sodium levels is also an indicator of managed or unmanaged disease. There are no CHF patients that have been admitted to the ED that have had abnormal serum sodium levels observed. Average sodium level for CHF patients is within target range (135-145mEq/dL) at 140mEq/dL.
+  
+### Blood Pressure Control 
+
+```{sql connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+-- CTE to extract CHF patient encounters --
+, CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasondescription LIKE '%congestive heart failure%'
+)
+-- CTE to hold CHF patient blood pressure (BP) observations where BP is abnormal/out-of-range --
+, CHF_bp as (
+SELECT CHF_encounters.patient, observations.value, observations.description
+  FROM CHF_encounters
+  LEFT JOIN observations on CHF_encounters.patient = observations.patient
+  WHERE (observations.description LIKE '%Systolic Blood Pressure%' AND observations.value > '130.0') OR (observations.description LIKE '%Systolic Blood Pressure%' AND observations.value < '110.0') OR (observations.description LIKE '%Diastolic Blood Pressure%' AND observations.value >= '90.0')
+)
+-- returns count of patients where bp is observed to be abnormal/out-of-range
+SELECT count(distinct CHF_bp.patient) as unmanaged_bp_pts
+FROM CHF_bp
+```
+
+```{sql connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+-- CTE to extract CHF patient encounters --
+, CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasondescription LIKE '%congestive heart failure%'
+)
+-- CTE to hold CHF patient blood pressure (BP) observations where BP is abnormal/out-of-range --
+, CHF_bp as (
+SELECT CHF_encounters.patient, observations.value, observations.description
+  FROM CHF_encounters
+  LEFT JOIN observations on CHF_encounters.patient = observations.patient
+  WHERE observations.description LIKE '%Systolic Blood Pressure%'
+)
+-- returns average systolic BP of CHF cohort --
+SELECT AVG(CAST(CHF_bp.value as NUMERIC)) as avg_sbp
+FROM CHF_bp
+```
+```{sql connection=con}
+-- CHF patient population CTE used above --
+WITH CHF_patients AS (
+    SELECT distinct(patient)
+      FROM careplans 
+      WHERE careplans.reasondescription LIKE '%congestive heart failure%' OR careplans.reasoncode = '88805009'
+    UNION 
+    SELECT distinct(patient) 
+      FROM conditions 
+      WHERE conditions.description LIKE '%congestive heart failure%'
+  UNION 
+   SELECT distinct(patient) 
+      FROM notes
+      WHERE notes.note_text LIKE '%congestive heart failure%'
+)
+-- CTE to extract CHF patient encounters --
+, CHF_encounters as (
+  SELECT distinct(CHF_patients.patient), encounters.description, encounters.encounterclass
+  FROM CHF_patients
+  LEFT JOIN encounters on encounters.patient = CHF_patients.patient
+  WHERE encounters.reasondescription LIKE '%congestive heart failure%'
+)
+-- CTE to hold CHF patient blood pressure (BP) observations where BP is abnormal/out-of-range --
+, CHF_bp as (
+SELECT CHF_encounters.patient, observations.value, observations.description
+  FROM CHF_encounters
+  LEFT JOIN observations on CHF_encounters.patient = observations.patient
+  WHERE observations.description LIKE '%Diastolic Blood Pressure%'
+)
+-- returns average diastolic BP of CHF cohort --
+SELECT AVG(CAST(CHF_bp.value as NUMERIC)) as avg_dbp 
+FROM CHF_bp
+```
+  
+  Target systolic blood pressure (SBP) for heart failure patients is between 110mmHg and 130mmHg. Target diastolic blood pressure (DBP) for heart failure patients is less than or equal to 90mmHg. When CHF patient blood pressure is out of target range, the heart patients are at greater risk for adverse events and admission to the hospital. Of the 847 CHF patient cohort, 791 patients have a systolic blood pressure observation greater than 130mmHg, less than 110mmHg, or a diastolic blood pressure reading greater than/equal to 90mmHg which indicates uncontrolled blood pressure for CHF patients (Huang, Rihua et al, 2022). It is also important to note that the average SBP of our cohort, ~149mmHg is greater than the target SBP upper range 130mmHg. However, the average DBP recorded per CHF patient is within the target DBP for heart failure patients (less than 90mmHg). These patients will need to be targeted for additional care management and may benefit from a nutrition counseling appointment in order to work towards blood pressure control through non-pharmaceutical methods, thus preventing CHF symptom exacerbation in the future. 
+
+### Conclusion 
+
+  Characterizing the health system's CHF patient cohort above - specifically looking at patient demographics (age, gender, and ethnicity), patient behaviors (smoking), blood pressure control, body weight management, rates of CHF symptom exacerbation, and ED visits - our team has identified patients who may benefit from additional care management and nutrition counseling intervention to prevent future ED visits. Seeing high incidence of emergency department visits and abnormal patient observations in our CHF cohort, we can see a need for intervention regarding dietary care plan compliance. This cohort provides a meaningful patient population for our team identify patient trends and provide reason to hospital administration for quality improvement of CHF patient care. 
+
+### References
+ 
+Abshire, Martha et al. “Nutritional Interventions in Heart Failure: A Systematic Review of the Literature.” Journal of cardiac failure vol. 21,12 (2015): 989-99.   doi:10.1016/j.cardfail.2015.10.004
+ 
+American Heart Association. “Heart Failure.” Www.heart.org, 2019   https://www.heart.org/en/health-topics/heart-failure. 
+
+American Hospital Association. “Fact Sheet: Majority of Hospital Payments Dependent on Medicare or Medicaid: AHA.” American Hospital Association, 2020, https://www.aha.org/fact-sheets/2022-05-25-fact-sheet-majority-hospital-payments-dependent-medicare-or-medicaid. 
+
+Bhatnagar, Roshni, et al. “Expenditure on Heart Failure in the United States: The Medical Expenditure Panel Survey 2009-2018.” JACC, 1 Aug. 2022, https://www.jacc.org/doi/abs/10.1016/j.jchf.2022.05.006. 
+
+Centers for Disease Control and Prevention. “Heart Failure.” Heart Disease, Centers for Disease Control and Prevention, 14 Oct. 2022, https://www.cdc.gov/heartdisease/heart_failure.htm. 
+
+Huang, Rihua et al. “Time in Target Range for Systolic Blood Pressure and Cardiovascular Outcomes in Patients With Heart Failure With Preserved Ejection Fraction.” Journal of the American Heart Association vol. 11,7 (2022): e022765. doi:10.1161/JAHA.121.022765
+
+“Hospital Readmissions Reduction Program (HRRP).” CMS, 2019,    https://www.cms.gov/Medicare/Medicare-Fee-for-Service          Payment/AcuteInpatientPPS/Readmissions-Reduction-Program. 
+ 
+Tsuyuki et al. “Acute Precipitants of Congestive Heart Failure Exacerbations.” Archives of   internal medicine. 161. (2001): 2337-42. 10.1001/archinte.161.19.2337.
+

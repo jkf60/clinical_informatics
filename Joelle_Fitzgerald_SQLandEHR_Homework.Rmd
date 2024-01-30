@@ -1,0 +1,199 @@
+---
+title: "Joelle_Fitzgerald_SQLandEHR_Homework"
+author: "Joelle Fitzgerald"
+date: "9/12/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+#| warning: false
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticMGUH2022",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = key_get(service = "syntheticmguh", 
+                             username = "hids502_student"),
+          bigint = "numeric")
+# Use this to set a default connection for every SQL chunk
+# There seems to be some sort of bug in Quarto that requires this
+knitr::opts_chunk$set(connection = "con")
+```
+# Question 1
+
+1. What are the top 3 causes of morbidity (illness) and the top 3 causes of mortality (death) in the US? 
+
+According to the Centers for Disease Control and Prevention (CDC), data from 2020 suggests the top 3 causes of mortality or death in the United States are Heart Disease, Cancer, and COVID-19. Heart Disease contributed to 696,962 deaths per 100,000 U.S. standard population, Cancer contributed to 602,350 deaths per 100,000 U.S. standard population, and COVID-19 contributed to 350,831 deaths per 100,000 U.S. standard population (Murphy, Kochanek, Xu, & Arias 1). In a 2020 study of hospitalized COVID-19 patients in New York, researchers found hypertension, obesity, and diabetes were the most prevalent morbidities in patients (Richardson, Safiya et al 7). 
+
+In the Synthea data set, how would you estimate similar answers? 
+
+Mortality:
+```{sql connection=con}
+-- Selecting the top 3 causes of mortality (death) in the Synthea data set --
+
+SELECT conditions.description as mortality, COUNT(conditions.description)
+FROM conditions
+INNER JOIN observations ON conditions.description = observations.value
+  WHERE observations.code = '69453-9'
+GROUP BY conditions.description
+ORDER BY COUNT(conditions.description) DESC
+LIMIT 3 -- limit to top 3 causes of death --
+
+```
+When I run this code without a lIMIT clause I can see that COVID-19 and cancer/malignancies are also a large contributor to mortality in the Synthea data set.
+
+```{sql connection=con}
+-- returns all possible causes of death in order from most prevalent to least prevalent --
+SELECT conditions.description as mortality, COUNT(conditions.description)
+FROM conditions
+INNER JOIN observations ON conditions.description = observations.value
+  WHERE observations.code = '69453-9'
+GROUP BY conditions.description
+ORDER BY COUNT(conditions.description) DESC
+
+```
+
+Morbidity:
+```{sql connection=con}
+-- Selecting the top 3 causes of morbidity (illness) in the Synthea data set --
+
+SELECT COUNT(*) AS morbidity_rate, description
+FROM conditions
+WHERE (description NOT LIKE '%(finding)' AND description NOT LIKE '%(person)')
+GROUP BY description
+ORDER BY morbidity_rate DESC
+LIMIT 3 -- limit top three causes of morbidity --
+
+```
+
+```{sql connection=con}
+-- returns all possible causes of illness in order from most prevalent to least prevalent --
+
+SELECT COUNT(*) AS morbidity_rate, description
+FROM conditions
+WHERE (description NOT LIKE '%(finding)' AND description NOT LIKE '%(person)')
+GROUP BY description
+ORDER BY morbidity_rate DESC
+
+```
+
+As seen by the queries above, there are some similarities and differences between mortality and morbidity data in the Synthea data set verses data presented by the CDC and other online sources. The Synthea data set and the CDC both return heart disease (or a type of heart disease) as one of the top 3 causes of mortality. In the Synthea data set, COVID-19 and Cancer/malignancies are lower on the list of 'causes of death' than what the CDC has reported, however, they are still within the top 15 causes of death. This observation is similar to the output for morbidity in the Synthea data set. Respiratory illnesses, pre-diabetes, and hypertension are some of the top morbidity rates when I run the query above. This result is similar to the morbidities discussed by the 2020 study of hospitalized COVID-19 patients in New York where hypertension, obesity, and diabetes were the most prevelant morbidities in patients. However, the Synthea data set also returns 'Normal pregnancy' and 'Miscarriage in the first trimester' as a morbidity. Normal pregnancy and miscarriage in the conditions data table may result in complications that lead to the death of a patient or illness, however, my references did not support this prediction related to morbidity rates.
+
+Resources
+
+Murphy SL, Kochanek KD, Xu JQ, Arias E. Mortality in the United States, 2020. NCHS Data Brief, no 427. Hyattsville, MD: National Center for Health Statistics. 2021. DOI: https://dx.doi.org/10.15620/cdc:112079
+
+Richardson, Safiya et al. “Presenting Characteristics, Comorbidities, and Outcomes Among 5700 Patients Hospitalized With COVID-19 in the New York City Area.” JAMAvol. 323,20 (2020): 2052-2059. doi:10.1001/jama.2020.6775
+
+
+# Question 2
+
+2. What is the breakdown of spending between Medicaid, Medicare and everything else in the US? Why do you think it might break down this way? 
+
+The Centers for Medicare & Medicaid Services (CMS) National Health Expenditure (NHE) data sheet breaks down spending costs for Medicare, Medicaid, private, and public health insurance in the United States for 2020. 
+
+Medicare spending grew to 829.5 billion dollars in 2020. Medicaid spending grew to 671.2 billion dollars in 2020. Private health insurance spending declined 1.2% to 1,151.4 billion dollars in 2020. Out of pocket spending declined 3.7% to 388.6 billion dollars in 2020. According to CMS, Federal government spending for health care grew 36.0% in 2020 which is most likely in response to the COVID-19 pandemic (Centers for Medicare & Medicaid Services 1). 
+
+As more health care policies are put in place by the US government, spending on Medicare, Medicaid, and private/public health insurance will shift. Like we discussed in class, the establishment of the Affordable Care Act (ACA) dramatically changed insurance rates and how patients, providers, and payers interact. I can hypothesize that the increase in Medicare and Medicaid spending may be due to the expansion of policy as well as the growing US population that qualifies for both federally funded healthcare insurance options - for example, the baby boomer generation. We may also be seeing a decrease in out-of-pocket spending due to more affordable/inclusive insurance options for patients of all backgrounds made possible by the ACA. As shown below in the Synthea data set, Medicaid, private insurance, and Medicare are the largest spenders (top 3) which is also congruent with CMS's data discussed above.  
+
+In the Synthea data set, how would you estimate similar answers?
+```{sql connection=con}
+-- Costing breakdown of Synthea data set for Medicare, Medicaid, etc. total spending --
+
+SELECT name, amount_covered
+FROM payers
+ORDER BY amount_covered DESC
+
+
+```
+
+Resources 
+
+“NHE Fact Sheet.” CMS, 12 August 2022, https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/NationalHealthExpendData/NHE-Fact-Sheet. Accessed 11 September 2022.
+
+# Question 3
+
+3. What percent of Americans are estimated to be uninsured in the United States? How has this changed over the past 15 years, and why?
+
+An estimated 9.6% of U.S. residents, or 31.1 million people, lacked health insurance in 2021 according to estimates from the National Health Interview Survey released by the Centers for Disease Control and Prevention (CDC) (Cohen et al. 1). 
+
+In 2000 uninsured Americans accounted for 14.9% of the population and reached 16.0% in 2010. In the first quarter of 2022, the uninsured population accounts for 8.0% of US citizens. This decrease in uninsured Americans is most likely due to several government policies put into effect between 2009 and today including the Affordable Care Act which aided those below the federal poverty line to have access to care while also expanding Medicaid, and the American Rescue Plan (2021) or the COVID-19 Stimulus package which aided public health in decreasing healthcare insurance premiums (Lee, Ruhter, Peters, De Lew, Sommers 2-8). Additionally, public health plan enrollment is now available for applicants below the federal poverty line. An increase in opportunities for enrollment in coverage through federal and state funding may offer an explanation for these estimations. 
+
+In the Synthea data set, how would you estimate similar answers?
+```{sql connection=con}
+-- estimate percent of uninsured patients in the Synthea data set over the last 15 years --
+
+SELECT date_part('year', start_year) as year, COUNT(distinct(patient)) as uninsured_patients
+FROM payer_transitions
+WHERE payer = 'b1c428d6-4f07-31e0-90f0-68ffa6ff8c76' AND
+start_year >= '2007-01-01'
+GROUP BY year
+ORDER BY year DESC
+
+```
+
+```{sql connection=con}
+-- estimated amount of insured patients in the data set --
+
+SELECT date_part('year', start_year) as year, COUNT(distinct patient) as insured_patients
+FROM payer_transitions
+WHERE payer != 'b1c428d6-4f07-31e0-90f0-68ffa6ff8c76' AND start_year >= '2007-01-01'
+GROUP BY year
+ORDER BY year DESC
+
+```
+```{r}
+# finding the percentage of uninsured to insured patients in the Synthea data set using the data from the above SQL queries
+
+# for year = 2022
+percent_uninsured_2022 <- (1974/(1974+11936))*100
+print(percent_uninsured_2022)
+
+# for year = 2015
+percent_uninsured_2015 <- (2741/(2741+17429))*100
+print(percent_uninsured_2015)
+
+# for year = 2007
+percent_uninsured_2007 <- (2532/(2532+17924))*100
+print(percent_uninsured_2015)
+```
+
+Using the data generated from the SQL queries to calculate the amount of uninsured patients and insured patients (using r) in the Synthea data set, I found that the percentage of uninsured patients is similar to early 2000 data for the US population. The estimated percent of uninsured patients for 2022 (~14.2%) is notably higher than the US estimate of 8.0%. 
+
+Resources 
+
+Lee A, Ruhter J, Peters C, De Lew N, Sommers BD. National Uninsured Rate Reaches All-Time Low in Early 2022. (Issue Brief No. HP-2022-23). Office of the Assistant Secretary for Planning and Evaluation, U.S. Department of Health and Human Services. August 2022.
+
+Robin A. Cohen, Ph.D., Michael E. Martinez, M.P.H., M.H.S.A., Amy E.    Cha, Ph.D., M.P.H., and Emily P. Terlizzi, M.P.H. Division of Health    Interview Statistics, National Center for Health Statistics. “Health  Insurance Coverage: Estimates from the National Health Interview     Survey.” Centers for Disease Control and Prevention, Centers for Disease Control and Prevention, 28 July 2022,     https://www.cdc.gov/nchs/nhis/healthinsurancecoverage.htm. 
+
+# Question 4
+
+4. What is meant by "surprise billing" in the US? How common is this? What is the magnitude of surprise billing (eg, the range in prices billed)?
+
+“Surprise Billing” in the United States is an unexpected medical bill issued to a patient from an out-of-network provider or out-of-network facility. This means that a patient’s insurance does not cover any costs of care from that provider or healthcare facility. An example of a “surprise bill” is when a patient is scheduled for surgery at a facility with a provider that is covered by their insurance (or in-network), but the day of surgery, that particular surgeon is unavailable and the patient undergoes surgery with a different provider that happens to be out-of-network or not covered by their insurance. The patient receives a “surprise bill”  after the payer and healthcare facility negotiate and come to a conclusion that the service is out-of-network and not covered by any entity. 
+
+According to the Kaiser Family Foundation, more than any other type of hospitalizations, surgery admissions are more likely to result in an out-of-network charge (21%), followed by admissions for mental health and/or substance abuse (20%). Additionally, 23% of inpatient admissions for heart attacks resulted in a "surprise bill" and 21% of women undergoing mastectomy recieved an out-of-network charge (Millman, Jason 1). About 1 in 5 emergency visits and about 1 in 6 inpatient admissions at in-network facilities result in an out-of-network charge, putting patients at risk of a "surprise bill". Of those 1 in 5 emergency visits, the average cost of "surprise billing" ranges from $750 to $2,600 per visit (CMS 1). 
+
+How would you find evidence of this in the Synthea data set? Show whether it exists or does not exist in Synthea.
+
+```{sql connection=con}
+-- evidence of "surprise billing" in the Synthea data set --
+SELECT min(total_claim_cost), max(total_claim_cost), AVG(total_claim_cost)
+FROM encounters
+WHERE encounters.payer != 'b1c428d6-4f07-31e0-90f0-68ffa6ff8c76' AND payer_coverage = 0 -- seeing what encounters were not covered by insurance, but the patient was connected to some sort of insurance policy or payer id --
+
+
+```
+
+The query above is comparable to the average surprise billing cost I found online. When the patient has insurance but the payer covers zero cost associated with the out-of-network encounter, the patient is billed (see 'WHERE' clause). I took the average the total_claim_cost of these 'surprise bills' to see if it lined up the with range ($750-$2600) I found from CMS.gov. $2857.899 is greater than the average range I found, but still very close to the upper end value of $2600. 
+
+Resources
+
+“Press release HHS Kicks Off New Year with New Protections from Surprise Medical Bills.” CMS, 3 January 2022, https://www.cms.gov/newsroom/press-releases/hhs-kicks-new-year-new-protections-surprise-medical-bills. Accessed 11 September 2022.
+
+Millman, Jason. “Before New Ban, the Prevalence of Surprise Bills.” KFF, 7 January 2022, https://www.kff.org/health-reform/slide/before-new-ban-the-prevalence-of-surprise-bills/. Accessed 11 September 2022.

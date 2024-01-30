@@ -1,0 +1,115 @@
+---
+title: "Joelle_Fitzgerald_Public/PopHealth_Homework"
+author: "Joelle Fitzgerald"
+date: "9/19/2022"
+output: html_document
+---
+
+```{r}
+#| warning: false
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticMGUH2022",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = key_get(service = "syntheticmguh", 
+                             username = "hids502_student"),
+          bigint = "numeric")
+# Use this to set a default connection for every SQL chunk
+# There seems to be some sort of bug in Quarto that requires this
+knitr::opts_chunk$set(connection = "con")
+```
+## Introduction
+
+  As the world accepts the new reality of the coronavirus and becomes accustomed to living in a global pandemic, it is important for hospitals and clinicians to prepare and operate effectively in order to protect individual patient and population health as a novel disease becomes more common among the general population. Looking retrospectively at patient outcomes, interventions implemented, and unique patient, physician, and hospital data, allows for overall trend analysis leading to better clinical care. As of February 2022, the number of hospital beds occupied by COVID-19 patients in District of Columbia (DC) hospitals was a total of 126 with 13 beds being on the Intensive Care Unit (ICU) floors (Government of The District of Columbia). Having a compiled data registry of the outcomes and health status of these patients as well as specific procedures and interventions performed during their care, will aid clinicians and hospitals systems in understanding the faults and working aspects of COVID-19 patient care - ultimately improving clinical care as a whole. 
+
+  To incorporate unique Electronic Medical Record (EMR) data models and tools across 3 separate hospital systems in the DC area - MGUH, Sibley, and GW - my team and I have created and coordinated a standardized multi-stakeholder registry specific to COVID-19 patient and encounter data. In this registry, encoding of data sources is consistent between all entities and mimics the Observational Medical Outcomes Partnership (OMOP) interchangeable data model, so clinicians at each organization can understand the possible risks and benefits of COVID-19 health care referencing a larger data set.
+
+## Question 1: What patients will be included?
+
+  The population in this database includes patients who have been diagnosed with having COVID-19. To select these patients, the data set ‘conditions’ (which includes any/all instances where a patient could be diagnosed with COVID-19) is filtered by the description for the condition noted at an encounter (COVID-19). We will not be including ‘suspected COVID-19’ patients as this may alter the accuracy of our data if a patient develops a different diagnosis and the data of that patient/encounter is no longer relevant to our registry. 
+
+```{sql, connection=con}
+-- filter data set to only return COVID-19 patient population --
+SELECT COUNT(distinct patient), conditions.description
+FROM conditions
+WHERE description LIKE 'COVID%'
+GROUP BY conditions.description
+
+```
+
+  In the coding section above, you can see that there are a total count of 1,958 distinct patients diagnosed with COVID-19. These  patients will be included in our data registry. The code below shows all distinct patients (printed individually) who have been diagnosed with having COVID-19 at any given time pulled from the conditions table.
+
+```{sql, connection=con}
+-- showing breakdown of COVID-19 diagnoses per patient of 1,958 --
+SELECT distinct patient, conditions.description
+FROM conditions
+WHERE description LIKE 'COVID%'
+
+```
+
+## Question 2: What data in addition to patient IDs will you include, and why?
+
+  In addition to the patient's unique ID/Medical Record Number(MRN) returned with the condition of ‘COVID-19%’ diagnosis, demographic data such as gender, age, ethnicity/race, and patient zip code will also be returned. In order to get this information from the data set into a usable registry, tables will be joined to show demographic information along with COVID-19 diagnosis. Using inner join to match unique patient ids, we will combine the conditions table and patients table on conditions.patient is equal to patients.id where the conditions.description is like ‘COVID%’. With this, we will select/return patient demographic information (from the patients table) including patients.birthdate, patients.ethnicity, patients.gender, patients.zip, patients.race, patients.first, patients.last, and patients.id. Returning demographic data of patients having COVID-19, may allow us to analyze trends to decipher what populations are most at risk for developing illness (and at what severity), average outcomes based on gender/race/location, and which populations (gender, age, ethnicity/race) tend to have the highest survival or death rate due to COVID-19. This data is useful in starting to hypothesize certain interventions that may target specific populations to improve clinical outcomes overall. Demographic data can also be useful in determining common trends or biases in care - examining which patients have more interventions implemented during any given encounter, which tests tend to be more efficacious for gaining insight on a certain group of patients, outcomes of one demographic may differ from another, etc. All this information can be helpful when striving for better clinical care. 
+ 
+  Now that we can see demographic data, it is also important to know the health history and current status of COVID-19 patients. Obtaining lab results, observations, medications, and comorbid conditions of patients will help paint a holistic picture of each patient and allow us to generalize what interventions are used most, if providers were successful in creating positive clinical outcomes, and if there are particular observations that contribute to a better or worse prognosis. Combining the observations table, matching observations.patient with patient.id (as seen above with the conditions table) where conditions.description is like ‘COVID%’ and selecting/returning observations.description, observations.value, observations.units, and observations.category will allow us to visualize all tests and observations of unique patient ids against their demographic data already displayed. 
+  
+  Additionally, if a patient has a diagnosis of a chronic illness or is taking a certain medication, this data may be an indicator of poor prognosis when compared to other patients. To obtain this information, we will also need to inner join the medications table where patients.id match medication.patient and extracting medications.reasondescription and medications.description. This will give us insight to what comorbid conditions the patient may have or any important health history items that may be relevant to trend analysis when comparing across a larger data set of patients. 
+  
+  Furthermore, observing if a patient has been vaccinated against COVID-19 may be a good indicator for patient survival as well as length of stay and/or necessary interventions if admitted to the hospital. To extract immunizations.date and immunizations.description we will also inner join the immunization table on patients.id and immunizations.patient where immunization code is equal to ‘207’ for the “SARS-COV-2 (COVID-19) vaccine”. Vaccination status of a patient can aid providers in prioritizing care if one patient may be prone to severe effects (an unvaccinated patient may be more likely to be hospitalized) verses another. Vaccination status for COVID-19 may also help providers look retrospectively on patient survival rate and/or quality of life if a patient was diagnosed with COVID-19 and then was vaccinated - seeing if a COVID vaccination prevented readmission, thus improving patient well-being and clinical outcomes. 
+
+  Adding in information from the encounters table, we can also assess which provider cared for each distinct patient at an organization where a patient was seen for a specific COVID-19 encounter. Inner joining the encounters table to the data we already generated from the conditions, patients, medications, immunizations, and observations tables will allow us to see a comprehensive data set of all entities involved in a patient’s care. Now, we can assess details of which organization has seen the most patients, which clinicians and hospitals are associated with positive or negative patient outcomes (compared to the interventions implemented, demographic population, patient observations, etc.), and what the patient population looks like at each organization with demographic information. This data is important for noticing trends in clinical care so that we can target a cohort of patients, providers, or organizations when thinking of solutions for improving clinical care. 
+
+  We also want to pull the stop and start date of patient encounters to assess when the patient was first diagnosed, if they have had multiple diagnoses (and how far apart), and patient length of stay if admitted. To do this, we can use DATEDIFF() to convert encounters.start and encounters.stop on the same population of COVID-19 patients pulled by the database into hours as length_of_stay which will give us a time interval from when the patient was first seen for COVID-19 and if/when they were discharged. We can also look at each distinct patient to see if they've had multiple instances of COVID-19 and when they were first diagnosed by selecting the conditions.start date as date_of_diagnosis and conditions.stop date as condition_stop_date for each COVID-19 patient. This information is particularly useful for analyzing the inpatient population of COVID-19 patients as length of stay can reveal quality of treatment and hospital efficiency. From this, we can calculate the average length of stay between COVID-19 patients at different organizations, cared for by specific providers, undergoing particular lab tests or interventions, and of a certain demographic population which will allow us to pin point areas of weakness and strength in clinical care.
+  
+  Below is a sample of what a portion of this code in SQL may look like. This coding section does not include all the valuable information discussed above. 
+  
+```{sql, connection=con}
+SELECT distinct patients.id, first, last, race, zip, gender, birthdate, deathdate, 
+conditions.description as patient_condition, 
+conditions.start as date_of_diagnosis, 
+conditions.stop as condition_stop_date, 
+encounters.organization as encounter_organization, encounters.provider as encounter_provider,
+encounters.start as date_of_admission, 
+encounters.stop as date_of_discharge, 
+medications.description as medication, 
+medications.reasondescription as reason_for_medication, 
+medications.start as medication_start_date,
+medications.stop as medication_stop_date
+    FROM patients
+    INNER JOIN conditions ON patients.id = conditions.patient
+    INNER JOIN encounters ON patients.id = encounters.patient
+    INNER JOIN medications ON patients.id = medications.patient
+    WHERE conditions.description LIKE 'COVID%'
+ORDER BY patients.id
+
+```
+
+## Question 3: How will you assure that data from all 3 hospitals can be analyzed as a single data set?
+
+  Extracting all this information discussed above is valuable, however, standard language and encoding between entities is imperative when consolidating data to fit a single data set. To ensure that data from all 3 hospitals/EMR systems can be analyzed as a single data set, we will use tools to quantify and qualify data metric across sources, we will clean the data to remove or place hold missing data values per patient, and we will create a common condition language so no matter the source there is an ability to understand and use methods to analyze different data points. Our data set will mimic the OMOP data model in order to have inter-changeable descriptions and code so clinicians can analyze trends from a larger cohort of patients and relate their findings back to their own system. Subqueries such as average/mean, sum, summarize, max/min, plot (in r), and other statistical methods will be able to run across all patient data.  
+
+  In our data set, conditions such as start and stop date will be in a standard format ('year'-'month'-'day') in order to guarantee easy manipulation of variables. Standard column names/conditions between each entity - like the OMOP design - will also allow each table to be searchable and inter-operable between hospitals as all health data falls into a generalized category and is easily mutable between healthcare organizations. As in question 2.), every patient visit with SOAP note data such as vitals and visit description will be categorized into appropriate tables/columns such as 'observations.values' (labs, vitals, etc.) in the observations table or chief complaint as 'encounters.reasondescription' in the encounters table. Even if each EMR/EHR has its own unique language for describing a patient's condition or visit, there will be a sourced commonality built into our registry so that values and inputted data can be applied to a specific table and column, and therefore, a broader population of patients across the three hospitals. For example, using a 'LIKE' statement such as 'COVID%' will help narrow down patients in 'conditions.description' that are diagnosed with COVID-19 as the phrasing and classification is similar between entities and will be caught by the % operator. Additionally, medications each have a prescription unique to that patient which may be hard to generalize. However, if similar language is used and the description column stores the MD's orders, then the data registry can store any unique combination of prescriptions for any given COVID-19 patient and be extracted by the common condition medications.description. Ensuring that there common conditions and language used in the data registry and that all EMR data (from each unique hospital) is filtered to meet the same requirements, will ensure that the registry can be analyzed and used as a single data set to improve clinical outcomes for a broader patient population.
+
+## Question 4: What outcomes will you track, and why?
+
+  In addition to the information mentioned above that we can pull directly from the data set with our joined data tables, we want to be able to track specific patient outcomes such as survival rate, repeated admissions and/or follow up appointments, complications or patient safety, and quality of life. All of these measures will allow clinicians to see trends in patients and disease progression throughout their encounter(s). It is important to measure these outcomes as each outcome affects patient experience/safety and may offer insight regarding facility timeliness and effectiveness when providing care. 
+  
+  To support tracking of these outcomes, mortality data of COVID-19 patients where conditions.description (like ‘COVID%’) is associated with a death certificate (observations.code = '69453-9') will be returned to assess overall survival rates of certain patient populations. Additionally, we can assess repeated admissions when looking at the number of instances a patient's name (patients.first and patients.last) returned from the data set and their subsequent COVID-19 encounter where encounter.id, patients.id, and conditions.description is also returned when conditions.description is like ‘COVID%’ (see coding section for question 2). To pull follow-up or track patients beyond their COVID-19 encounter we can use patient ID, first and last name to select and return all additional encounter information for a distinct patient (encounters.reasondescription, encounters.provider, encounters.start/stop, encounters.description). This opens the door for analysis after COVID-19 patient discharge or recovery to assess re-admissions, additional complications or diagnoses, and patient health status after COVID-19 treatment and/or vaccination overall. For example, we can pull encounter.reasondescription of a patient encounter after their COVID-19 encounter.stop date to assess why the patient returned to the hospital and what that chief complaint might say about their COVID-19 care and/or disease progression. In addition, we can join the observations table to gain concrete values of distinct patient vital status, labs, and/or imaging that may be relevant for ensuring positive patient outcomes during and after a COVID-19 visit. 
+  
+  To track possible complications of care and patient safety, we can compare observation death certificates associated with COVID-19 patients and what interventions, lab tests, and health status measures needed to be done and weren't or that were inappropriately performed during an encounter. This could look like analyzing medications from the medications table that are associated with COVID-19 patients or specific lab tests or assessments performed from the observations table. 
+  
+  Furthermore, vital status (observations.value) of patients is a great indicator of patient health and prognosis overtime as it is a concrete measure of life or patient decline. If audit data was available, we could also measure the amount of safety reports completed and/or how infection rates (which could be extracted from observations.description for a given patient ID) may have impacted patient well-being and survival. 
+  
+  Tracking outcomes can be done looking at a large picture of data commonalities and differences between each patient, organization, and encounter. Combining tables and assigning appropriate aliases as information is extracted and/or calculated, will be helpful in visualizing COVID-19 clinical outcomes, consolidating patient data summaries, and analyzing data trends overall. 
+
+
+## References
+
+“Key Metrics.” Government of The District of Columbia, Mayor Muriel Bowser, 28 Feb. 2022, https://coronavirus.dc.gov/key-metrics. 
+
+
+

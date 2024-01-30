@@ -1,0 +1,201 @@
+---
+title: "JoelleFitzgerald_DataManagementIIHW"
+format: 
+  html:
+    self-contained: true
+---
+
+## HIDS 502: Data Management II Homework
+
+```{r setup, include=FALSE}
+#| warning: false
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticMGUH2022",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = key_get(service = "syntheticmguh", 
+                             username = "hids502_student"),
+          # Tell the driver to return very large integers as floating point (vs truncating them)
+          bigint = "numeric")
+knitr::opts_chunk$set(connection = "con")
+```
+
+# SyntheticMGUH As Big Data
+
+For this homework you should act as if the report will be distributed, thus cannot return any PHI. **Do not include identifiers such as names or medical record numbers at the individual level in your results** Avoid returning individual rows unless you want to indicate the structure of a result set for some reason - you should be returning summary data at this point.
+
+
+# Metadata
+
+The Synthea data set holds a `imaging` table with meta data. The meta data describes the modality and type of imaging study. 
+
+ * Present a summary table of the `imaging` to provide an overview of the most common types of imaging studies performed. (Do not return individual rows, summarize and present the data.)
+ 
+```{sql connection=con}
+-- returns summary of types of imaging studies performed and total count of code for each modality--
+SELECT count(modality_code) as code_count, modality_description, modality_code
+FROM imaging_studies 
+GROUP BY modality_description, modality_code
+
+```
+
+# Full Text
+
+## Asthma
+
+ * Using free text search, locate all of the patients whose notes indicated they may have asthma. *Do not return the patients, but return a summary of the cohort*
+ * How many of the patients you identified have a condition listed as 'asthma' in the `conditions` table?
+
+```{sql connection=con}
+-- returns count of patients with 'Asthma' condition recorded in Synthea conditions table --
+SELECT count(*) as count_asthma_diagnosed_patients
+FROM conditions
+WHERE LOWER(description) LIKE '%asthma%'
+
+```
+
+
+```{sql connection=con}
+-- returns summary count of patients with clinical notes indicating 'asthma' condition --
+SELECT count(distinct notes.patient) as asthma_note_count
+FROM notes
+LEFT JOIN conditions ON notes.patient = conditions.patient
+WHERE LOWER(notes.note_text) LIKE '%asthma%'
+
+```
+
+As seen above, only 651 patients in the Synthea dataset have 'Asthma' as a recorded condition while 1236 patients have notes indicating 'Asthma' as a problem or possible diagnosis. 
+
+## Allergies
+
+Some CT scans are done with "contrast", an intravenous form of dye to make the scan results clearer. People with shellfish allergies may have a similar reaction to contrast dye.
+
+ * Allergies are available in Synthea in the allergy table, but in the real world this is not always so clear. Using only the `notes` table, find all the patients that have an shellfish allergy, and then using the `imaging` table determine home many of those patients have had a CT scan.
+ 
+```{sql connection=con}
+-- allergy in notes table and see if they have had a CT scan --
+-- CTE noting patients with contrast allergy associated with shellfish allergy --
+with contrast_allergy as (
+SELECT count(distinct patient) as contrast_allergy
+FROM notes 
+WHERE note_text ~* 'allergy|contrast'
+), 
+-- CTE for patients with shellfish allergy --
+shellfish_allergy as (
+SELECT count(distinct patient) as shellfish_allergy
+FROM notes 
+WHERE note_text ~* 'shellfish|allergy'
+)
+-- returning count of patients with shellfish and contrast allergies to visualize occurrence in the dataset --
+SELECT *
+FROM contrast_allergy, shellfish_allergy
+```
+
+```{sql connection=con}
+-- returning a summary of CT scan and number of patients that have has a CT scan and have an allergy to shellfish recorded in their chart --
+SELECT imaging_studies.modality_description, imaging_studies.modality_code, count(distinct notes.patient) as patient_count
+FROM imaging_studies 
+LEFT JOIN notes on notes.patient = imaging_studies.patient
+WHERE imaging_studies.modality_code LIKE '%CT%' and notes.note_text ~* 'shellfish|allergy'
+GROUP BY imaging_studies.modality_description, imaging_studies.modality_code
+
+```
+
+A total of 9 patients have had a CT scan and have a shellfish allergy recorded in their chart.
+
+# Patient Matching
+
+ * How many patients in the Synthea database have the same first and last name? How many have the same first, last, gender and live in the same zip code?
+
+Hint: You can do this with a `JOIN` approach or a `GROUP BY` approach. If you use the latter you may want to look at the `HAVING` command as a filter.
+
+```{sql connection=con}
+-- returns the number of patients who's first and last name are the same --
+WITH duplicate_names as(
+  SELECT count(DISTINCT apr1.id) as matches_count, apr1.first as first, apr1.last as last
+  FROM public.patients AS apr1
+  LEFT JOIN public.patients AS apr2
+   ON apr1.last = apr2.last and apr1.first = apr2.first
+  WHERE apr1.last IS NOT NULL and apr1.first IS NOT NULL 
+  GROUP BY apr1.first, apr1.last
+  -- only records where there are more than 1 copy
+  HAVING count(DISTINCT apr1.id) > 1
+  ORDER BY count(DISTINCT apr1.id) desc
+)
+SELECT count(matches_count) as matches, count(first) as firstName, count(last) as lastName
+FROM duplicate_names
+
+
+```
+
+There are a total of 207 patients that have matching first and last names in the Synthea dataset.
+
+```{sql connection=con}
+-- returns the number of patients who's first and last name, gender, and zip code are the same --
+WITH duplicate_patients as(
+  SELECT count(DISTINCT apr1.id) as matches_count, apr1.first as first, apr1.last as last, apr1.gender as gender, apr1.zip as zip
+  FROM public.patients AS apr1
+  LEFT JOIN public.patients AS apr2
+   ON apr1.last = apr2.last and apr1.first = apr2.first and apr1.gender = apr2.gender and apr1.zip = apr2.zip
+  WHERE apr1.last IS NOT NULL and apr1.first IS NOT NULL 
+  GROUP BY apr1.first, apr1.last, apr1.gender, apr1.zip
+  -- only records where there are more than 1 copy
+  HAVING count(DISTINCT apr1.id) > 1
+  ORDER BY count(DISTINCT apr1.id) desc
+)
+SELECT count(matches_count) as matches, count(md5(first)) as firstName, count(md5(last)) as lastName, count(gender) as gender_match, count(zip) as zip_match
+FROM duplicate_patients
+
+
+```
+
+A total of 5 patients have the same firstname, lastname, gender, and zip code in the synthea dataset.
+
+```{sql connection=con}
+-- returns the number of patients who's first and last name, gender, and zip code are the same --
+WITH duplicate_patients as(
+  SELECT count(DISTINCT apr1.id) as matches_count, apr1.first as first, apr1.last as last, apr1.gender as gender, apr1.zip as zip
+  FROM public.patients AS apr1
+  LEFT JOIN public.patients AS apr2
+   ON apr1.last = apr2.last and apr1.first = apr2.first and apr1.gender = apr2.gender and apr1.zip = apr2.zip
+  WHERE apr1.last IS NOT NULL and apr1.first IS NOT NULL 
+  GROUP BY apr1.first, apr1.last, apr1.gender, apr1.zip
+  -- only records where there are more than 1 copy
+  HAVING count(DISTINCT apr1.id) > 1
+  ORDER BY count(DISTINCT apr1.id) desc
+)
+-- returns matching patients with encoded patient information --
+SELECT count(matches_count) as matches, md5(duplicate_patients.first) as firstName, md5(duplicate_patients.last) as lastName, duplicate_patients.gender as gender_match, (CAST(LEFT(CAST(duplicate_patients.zip AS VARCHAR),3) AS INT)) as zip_match
+FROM duplicate_patients
+GROUP BY duplicate_patients.first, duplicate_patients.last, duplicate_patients.gender, duplicate_patients.zip
+
+
+```
+
+
+# Bonus
+
+* How many patients might have duplicate accounts based on middle name or first name errors? (You may not find any ... but show me how you would approach this.)
+
+```{sql connection=con}
+-- returns matching patient accounts based on first and last names that match based on the levenshtein string matching --
+WITH duplicate_accounts as(
+  SELECT count(DISTINCT apr1.id) as matches_count, levenshtein(apr1.first, apr2.first) as firstName, levenshtein(apr1.last, apr2.last) as lastName,  apr1.gender as gender, (CAST(LEFT(CAST(apr1.zip AS VARCHAR),3) AS INT)) as zip -- only returns the first three numbers of the zip code to abide by HIPAA standards --
+  FROM public.patients AS apr1
+  LEFT JOIN public.patients AS apr2
+   ON apr1.last = apr2.last and apr1.first = apr2.first
+  WHERE apr1.last IS NOT NULL and apr1.first IS NOT NULL and apr1.gender = apr2.gender and apr1.zip = apr2.zip
+  GROUP BY apr1.first, apr1.last, apr1.gender, apr1.zip, apr2.last, apr2.first
+  -- only records where there are more than 1 copy
+  HAVING count(DISTINCT apr1.id) > 1
+  ORDER BY count(DISTINCT apr1.id) desc
+)
+SELECT SUM(matches_count) as total_duplicate_accounts
+FROM duplicate_accounts
+
+```
+There are a total of 10 patients that may have duplicate accounts in the Synthea dataset as shown by the closely similar string matches using levenshtein string matching method.

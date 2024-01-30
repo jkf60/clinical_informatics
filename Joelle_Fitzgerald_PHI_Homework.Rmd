@@ -1,0 +1,437 @@
+---
+title: "Joelle_Fitzgerald_PHI_Homework"
+author: "Joelle Fitzgerald"
+date: "10/24/2022"
+output: html_document
+---
+
+## Data Management I in the SyntheticMGUH Data Set
+
+A clinician has collected a series of patients that they will to work with other researchers on. This collection was derived from an EMR and is present in the SyntheticMGUH database as a table called inpatientregistry.
+
+Using the example framework:
+- Create a table that is fully de-identified to HIPAA standards
+- Include all dates 'date shifted'
+- Include the age at the time of admission and age at the date of death (from the original dates)
+- Include as much of the data as possible, without violating HIPAA!
+- Create a table that is de-identified as a 'limited data set'
+
+Demonstrate that your 3 tables are the same using your choice of methods. At a minimum, show that they have identical numbers of unique identifiers.
+
+Techniques you will want to be familiar with (mentioned in the lecture) and review:
+
+- One way cryptographic hash functions; for this exercise use the PostgreSQL function MD5()
+- Generating row numbers for SQL result sets. In PostgreSQL this is done with the "window" function of row_num() OVER () but other database often have a simpler command
+- Extraction of parts of dates - all databases do this differently, unfortunately. In PostgreSQL the commands is date_part()
+- Calculation of age; PostgreSQL has a convenient function called age()
+
+For extra credit:
+- Normalize the table into a patients table and an encounters table. 
+- Create a look-up table for the description field (don't reuse the codes from the codes table, create your own sequence.)
+
+
+#### Loading in the SyntheticMGUH Data Set
+```{r}
+#| warning: false
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticMGUH2022",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = key_get(service = "syntheticmguh", 
+                             username = "hids502_student"),
+          bigint = "numeric")
+# Use this to set a default connection for every SQL chunk
+# There seems to be some sort of bug in Quarto that requires this
+knitr::opts_chunk$set(connection = "con")
+```
+
+### HIPAA Compliant Table: 'hipaa_inpatientregistry'
+
+### Elements to discard according to HIPAA standards 
+
+Discard: 
+    - Names.
+    - All geographic subdivisions smaller than a state, including street address, city, county,             precinct, ZIP Code, and their equivalent geographical codes, except for the initial three digits       of a ZIP Code if, according to the current publicly available data from the Bureau of the             Census: The geographic unit formed by combining all ZIP Codes with the same three initial digits       contains more than 20,000 people.
+        - The initial three digits of a ZIP Code for all such geographic units containing 20,000 or             fewer people are changed to 000.
+    - All elements of dates (except year) for dates directly related to an individual, including birth       date, admission date, discharge date, date of death; and all ages over 89 and all elements of         dates (including year) indicative of such age, except that such ages and elements may be              aggregated into a single category of age 90 or older.
+    - Telephone numbers.
+    - Facsimile numbers.
+    - Electronic mail addresses.
+    - Social security numbers.
+    - Medical record numbers.
+    - Health plan beneficiary numbers.
+    - Account numbers.
+    - Certificate/license numbers
+    - Vehicle identifiers and serial numbers, including license plate numbers.
+    - Device identifiers and serial numbers.
+    - Web universal resource locators (URLs).
+    - Internet protocol (IP) address numbers.
+    - Biometric identifiers, including fingerprints and voiceprints.
+    - Full-face photographic images and any comparable images.
+    - Any other unique identifying number, characteristic, or code, unless otherwise permitted by the
+      Privacy Rule for re-identification.
+
+### HIPAA Compliant Data Table 
+
+Below is a rough outline of my thought process for this assignment:
+```{sql connection=con}
+--- HIPAA compliant registry ---
+SELECT 
+--- using MD5 hash to encode patient first name, last name, medical_record_id ---
+md5(CAST(medical_record_id AS TEXT)) encoded_mrn, md5(first) as encoded_first, md5(last) as encoded_last, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, and reasondescription are kept the same as they already follow hipaa regulation for PHI de-identification ---
+race, ethnicity, gender, state, encounterclass, code, description, reasoncode, reasondescription, 
+--- selecting only the first three digits from zip code because it encodes for state which is within hipaa compliance ---
+(CAST(LEFT(CAST(zip AS VARCHAR),3) AS INT)) as zip_hipaa,
+-- using the first three digits from address as a random number to shift all dates --
+CAST(LEFT(CAST(address AS VARCHAR),3) AS INT) as date_shift_offset,
+--- date shifting patient birth date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'birthdate_hipaa' --
+birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as birthdate_hipaa,
+--- date shifting patient death date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'deathdate_hipaa' --
+deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as deathdate_hipaa,
+--- date shifting patient admission date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'admission_date_hipaa' --
+admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as admission_date_hipaa,
+--- date shifting patient discharge date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'discharge_date_hipaa' --
+discharge_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as discharge_date_hipaa,
+--- using DATE_PART() function and AGE() to calculate age at admission and at death with random number from address/date_shift_offset to get hipaa compliant ages ---
+DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_death
+FROM inpatientregistry 
+```
+
+
+Converting data extracted above into a CTE and temporary table to be able to extract information from HIPAA-compliant data table and verify count of unique encoded_mrns have not changed from original dataset:
+```{sql connection=con}
+--- add drop table if exists to refresh temporary table created ---
+DROP TABLE IF EXISTS hipaa_inpatientregistry_temptable
+```
+```{sql connection=con}
+--- CTE for HIPAA regulated data ---
+WITH hipaa_inpatientregistry AS (
+SELECT 
+--- using MD5 hash to encode patient first name, last name, distinct medical_record_id ---
+distinct medical_record_id,
+md5(first) as encoded_first, md5(last) as encoded_last, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, and reasondescription are kept the same as they already follow hipaa regulation for PHI de-identification ---
+race, ethnicity, gender, state, encounterclass, code, description, reasoncode, reasondescription, 
+--- selecting only the first three digits from zip code because it encodes for state which is within hipaa compliance ---
+(CAST(LEFT(CAST(zip AS VARCHAR),3) AS INT)) as zip_hipaa,
+-- using the first three digits from address as a random number to shift all dates --
+CAST(LEFT(CAST(address AS VARCHAR),3) AS INT) as date_shift_offset,
+--- date shifting patient birth date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'birthdate_hipaa' --
+birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as birthdate_hipaa,
+--- date shifting patient death date using the first three digits of address in the same row and saving it in a new hipaa compliant date column 'deathdate_hipaa' --
+deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as deathdate_hipaa,
+--- date shifting patient admission date using the first three digits of address in the same row and saving it in a new hipaa compliant date column 'admission_date_hipaa' --
+admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as admission_date_hipaa,
+--- date shifting patient discharge date using the first three digits of address in the same row and saving it in a new hipaa compliant date column 'discharge_date_hipaa' --
+discharge_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as discharge_date_hipaa,
+--- using DATE_PART() function and AGE() to calculate age at admission and at death with random number from address/date_shift_offset to get hipaa-compliant ages ---
+DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_death
+FROM inpatientregistry 
+) 
+--- returning fully de-identified table ---
+--- casting MRNs to be encoded using MD5 for each patient ---
+SELECT md5(CAST(hipaa_inpatientregistry.medical_record_id AS TEXT)) as encoded_mrn,
+--- filtering out patient ages and dates that indicate a patient is 90 or older using CASE ---
+   CASE WHEN DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) >= 89 THEN 89
+     ELSE DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) END as age_at_admission,
+   CASE WHEN DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) >= 89 THEN 89 
+     ELSE DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) END as age_at_death, encoded_first, encoded_last, admission_date_hipaa, discharge_date_hipaa, zip_hipaa, hipaa_inpatientregistry.race, hipaa_inpatientregistry.ethnicity, hipaa_inpatientregistry.gender, hipaa_inpatientregistry.state, hipaa_inpatientregistry.encounterclass, hipaa_inpatientregistry.code, hipaa_inpatientregistry.description, hipaa_inpatientregistry.reasoncode, hipaa_inpatientregistry.reasondescription
+--- creating a temporary table to hold de-identified patient data ---
+INTO TEMP TABLE hipaa_inpatientregistry_temptable
+FROM hipaa_inpatientregistry 
+--- joining inpatientregistry and hipaa_inpatientregistry on medical_record_id to be able to filter and shift dates in the hipaa_inpatientregistry table to be HIPAA compliant ---
+LEFT JOIN inpatientregistry on hipaa_inpatientregistry.medical_record_id = inpatientregistry.medical_record_id
+
+```
+```{sql connection=con}
+SELECT encoded_mrn, encoded_first, encoded_last, age_at_admission, age_at_death, admission_date_hipaa, discharge_date_hipaa, zip_hipaa, race, ethnicity, gender, state, code, encounterclass, description, reasoncode, reasondescription
+FROM hipaa_inpatientregistry_temptable
+```
+
+```{sql connection=con}
+--- ensuring count of unique medical record ids in de-identified table matches original dataset ---
+SELECT COUNT(distinct encoded_mrn) as encoded_mrn_hipaa_table, COUNT(distinct medical_record_id) as medical_record_id_original
+FROM hipaa_inpatientregistry_temptable, inpatientregistry 
+```
+
+### Limited Data Table
+
+### Elements to include in a limited dataset
+
+Keep:
+  - Locations
+  - Dates
+Discard/Encode:
+  - All other identifiers are stripped or encoded from dataset
+
+Below is a rough extraction of the data I will want for the limited dataset table from original data:
+```{sql connection=con}
+-- Limited dataset --
+SELECT 
+--- a limited date set encoded/stripped except for dates and location ---
+birthdate as birthdate_limited,
+deathdate as deathdate_limited,
+admission_date as admission_date_limited,
+discharge_date as discharge_date_limited,
+--- age at admission --
+DATE_PART('year', age(admission_date, birthdate)) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate, birthdate)) as age_at_death, 
+--- using MD5 hash to encode patient first name, last name, distinct medical_record_id ---
+md5(first) as encoded_first, md5(last) as encoded_last, md5(CAST(medical_record_id AS TEXT)) encoded_mrn, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, reasondescription, and locations (state, county, city, address, zip) are kept the same as they are included in a limited data set ---
+race, ethnicity, gender, address, city, state, county, zip, encounterclass, code, description, reasoncode, reasondescription
+FROM inpatientregistry 
+
+```
+
+Converting limited patient dataset to a CTE and verifying 'encoded_mrn' count matches original dataset and HIPAA dataset from the previous query:
+```{sql connection=con}
+--- add drop table if exists to refresh temporary table created ---
+DROP TABLE IF EXISTS limited_inpatientregistry_table
+```
+```{sql connection=con}
+-- CTE for limited dataset --
+WITH limited_inpatientregistry AS (
+SELECT 
+--- a limited date set encoded/stripped except for dates and location ---
+birthdate as birthdate_limited,
+deathdate as deathdate_limited,
+admission_date as admission_date_limited,
+discharge_date as discharge_date_limited,
+--- age at admission --
+DATE_PART('year', age(admission_date, birthdate)) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate, birthdate)) as age_at_death, 
+--- using MD5 hash to encode patient first name, last name, distinct medical_record_id ---
+md5(first) as encoded_first, md5(last) as encoded_last, md5(CAST(medical_record_id AS TEXT)) encoded_mrn, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, reasondescription, and locations (state, county, city, address, zip) are kept the same as they are included in a limited data set ---
+race, ethnicity, gender, address, city, state, county, zip, encounterclass, code, description, reasoncode, reasondescription
+FROM inpatientregistry 
+)
+--- returning limited data table ---
+SELECT encoded_mrn, age_at_admission, age_at_death, birthdate_limited, deathdate_limited, admission_date_limited, discharge_date_limited, zip, race, ethnicity, gender, state, code, description, reasoncode, reasondescription
+--- creating a temporary table to hold limited patient dataset ---
+INTO TEMP TABLE limited_inpatientregistry_table
+FROM limited_inpatientregistry 
+
+```
+```{sql connection=con}
+SELECT *
+FROM limited_inpatientregistry_table
+```
+
+```{sql connection=con}
+-- CTE for limited dataset --
+WITH limited_inpatientregistry AS (
+SELECT 
+--- a limited date set encoded/stripped except for dates and location ---
+birthdate as birthdate_limited,
+deathdate as deathdate_limited,
+admission_date as admission_date_limited,
+discharge_date as discharge_date_limited,
+--- age at admission --
+DATE_PART('year', age(admission_date, birthdate)) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate, birthdate)) as age_at_death, 
+--- using MD5 hash to encode patient first name, last name, distinct medical_record_id ---
+md5(first) as encoded_first, md5(last) as encoded_last, md5(CAST(medical_record_id AS TEXT)) encoded_mrn, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, reasondescription, and locations (state, county, city, address, zip) are kept the same as they are included in a limited data set ---
+race, ethnicity, gender, address, city, state, county, zip, encounterclass, code, description, reasoncode, reasondescription
+FROM inpatientregistry 
+)
+--- returning count of unique encoded_mrn from limited dataset against original dataset count ---
+SELECT COUNT(distinct encoded_mrn) as encoded_mrn_limited_table, COUNT(distinct medical_record_id) as medical_record_id_original
+FROM limited_inpatientregistry, inpatientregistry
+```
+
+
+### Demonstrate that your 3 tables are the same using your choice of methods. At a minimum, show that they have identical numbers of unique identifiers.
+
+Combining HIPAA and limited datasets with original table to ensure all tables have the same unique identifiers. I will do this by joining all CTEs/tables with a UNION statement returning the count of unique encoded MRNs and number of rows for each table. 
+```{sql connection=con}
+WITH hipaa_inpatientregistry AS (
+SELECT 
+--- using MD5 hash to encode patient first name, last name, distinct medical_record_id ---
+md5(first) as encoded_first, md5(last) as encoded_last, md5(CAST(medical_record_id AS TEXT)) encoded_mrn, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, and reasondescription are kept the same as they already follow hipaa regulation for PHI de-identification ---
+race, ethnicity, gender, state, encounterclass, code, description, reasoncode, reasondescription, 
+--- selecting only the first three digits from zip code because it encodes for state which is within hipaa compliance ---
+(CAST(LEFT(CAST(zip AS VARCHAR),3) AS INT)) as zip_hipaa,
+-- using the first three digits from address as a random number to shift all dates --
+CAST(LEFT(CAST(address AS VARCHAR),3) AS INT) as date_shift_offset,
+--- date shifting patient birth date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'birthdate_hipaa' --
+birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as birthdate_hipaa,
+--- date shifting patient death date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'deathdate_hipaa' --
+deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as deathdate_hipaa,
+--- date shifting patient admission date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'admission_date_hipaa' --
+admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as admission_date_hipaa,
+--- date shifting patient discharge date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'discharge_date_hipaa' --
+discharge_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as discharge_date_hipaa,
+--- using DATE_PART() function and AGE() to calculate age at admission and at death with random number from address/date_shift_offset to get hipaa compliant ages ---
+DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_death
+FROM inpatientregistry 
+) ,
+-- Limited dataset --
+ limited_inpatientregistry AS (
+SELECT 
+--- a limited date set encoded/stripped except for dates and location ---
+birthdate as birthdate_limited,
+deathdate as deathdate_limited,
+admission_date as admission_date_limited,
+discharge_date as discharge_date_limited,
+--- age at admission --
+DATE_PART('year', age(admission_date, birthdate)) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate, birthdate)) as age_at_death, 
+--- using MD5 hash to encode patient first name, last name, distinct medical_record_id ---
+md5(first) as encoded_first, md5(last) as encoded_last, md5(CAST(medical_record_id AS TEXT)) encoded_mrn, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, reasondescription, and locations (state, county, city, address, zip) are kept the same as they are included in a limited data set ---
+race, ethnicity, gender, address, city, state, county, zip, encounterclass, code, description, reasoncode, reasondescription
+FROM inpatientregistry 
+)
+SELECT 
+--- selecting non-HIPAA compliant 'inpatientregistry' dataset into a temporary table and returning the number of rows and distinct MRNs as 'original_patients' ---
+  'inpatientregistry' as table,  
+  COUNT(*) AS rows, COUNT(DISTINCT medical_record_id) AS original_patients
+FROM inpatientregistry
+UNION --- setting union statement to combine 'inpatientregistry' with new hipaa_inpatientregistry CTE ---
+SELECT 
+--- selecting HIPAA compliant 'hipaa_inpatientregistry' dataset into a temporary table and returning the number of rows and distinct MRNs as 'hipaa_patients' ---
+ 'hipaa_inpatientregistry' as table, 
+ COUNT(*) AS rows, COUNT(DISTINCT encoded_mrn) AS hipaa_patients
+ FROM hipaa_inpatientregistry
+UNION --- setting union statement to combine 'hipaa_inpatientregistry' and 'inpatientregistry' with new limited_inpatientregistry CTE ---
+SELECT 
+--- selecting HIPAA compliant 'hipaa_inpatientregistry' dataset into a temporary table and returning the number of rows and distinct MRNs as 'limited_patients' ---
+  'limited_inpatientregistry' as table,
+  COUNT(*) AS rows, COUNT(DISTINCT encoded_mrn) AS limited_patients
+  FROM limited_inpatientregistry
+```
+
+
+### Normalization
+
+Attempted normalization. I split the encounter and patient information into two different look-up tables, however, there are still duplicates. 
+
+```{sql connection=con}
+--- add drop table if exists to refresh temporary table created ---
+DROP TABLE IF EXISTS patient_lookup
+```
+
+```{sql connection=con}
+WITH hipaa_inpatientregistry AS (
+SELECT 
+--- using MD5 hash to encode patient first name, last name, distinct medical_record_id ---
+medical_record_id, md5(first) as encoded_first, md5(last) as encoded_last, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, and reasondescription are kept the same as they already follow hipaa regulation for PHI de-identification ---
+race, ethnicity, gender, state, encounterclass, code, description, reasoncode, reasondescription, 
+--- selecting only the first three digits from zip code because it encodes for state which is within hipaa compliance ---
+(CAST(LEFT(CAST(zip AS VARCHAR),3) AS INT)) as zip_hipaa,
+-- using the first three digits from address as a random number to shift all dates --
+CAST(LEFT(CAST(address AS VARCHAR),3) AS INT) as date_shift_offset,
+--- date shifting patient birth date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'birthdate_hipaa' --
+birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as birthdate_hipaa,
+--- date shifting patient death date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'deathdate_hipaa' --
+deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as deathdate_hipaa,
+--- date shifting patient admission date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'admission_date_hipaa' --
+admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as admission_date_hipaa,
+--- date shifting patient discharge date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'discharge_date_hipaa' --
+discharge_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as discharge_date_hipaa,
+--- using DATE_PART() function and AGE() to calculate age at admission and at death with random number from address/date_shift_offset to get hipaa compliant ages ---
+DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_death
+FROM inpatientregistry 
+) ,
+filtered_age as (
+  SELECT md5(CAST(hipaa_inpatientregistry.medical_record_id AS TEXT)) as encoded_mrn,
+--- filtering out patient ages and dates that indicate a patient is 90 or older using CASE ---
+   CASE WHEN DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) >= 89 THEN 89
+     ELSE DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) END as age_at_admission,
+   CASE WHEN DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) >= 89 THEN 89 
+     ELSE DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) END as age_at_death, admission_date_hipaa, discharge_date_hipaa, zip_hipaa
+FROM hipaa_inpatientregistry 
+--- joining inpatientregistry and hipaa_inpatientregistry on medical_record_id to be able to filter and shift dates in the hipaa_inpatientregistry table to be HIPAA compliant ---
+LEFT JOIN inpatientregistry on hipaa_inpatientregistry.medical_record_id = inpatientregistry.medical_record_id
+)
+--- selecting patient data ---
+SELECT encoded_mrn, filtered_age.age_at_admission, filtered_age.age_at_death, zip_hipaa, race, ethnicity, gender, state, code
+-- adding patient data to new patient look-up data table ---
+INTO TEMP TABLE patient_lookup
+FROM inpatientregistry, filtered_age
+
+```
+
+```{sql connection=con}
+--- selecting only distinct patients in patient look-up table ---
+SELECT distinct encoded_mrn, age_at_admission
+FROM patient_lookup
+
+```
+
+```{sql connection=con}
+--- add drop table if exists to refresh temporary table created ---
+DROP TABLE IF EXISTS encounter_lookup
+```
+```{sql connection=con}
+WITH hipaa_inpatientregistry AS (
+SELECT 
+--- using MD5 hash to encode patient first name, last name, distinct medical_record_id ---
+medical_record_id, md5(first) as encoded_first, md5(last) as encoded_last, 
+--- race, ethnicity, encounterclass, code, description, reasoncode, and reasondescription are kept the same as they already follow hipaa regulation for PHI de-identification ---
+race, ethnicity, gender, state, encounterclass, code, description, reasoncode, reasondescription, 
+--- selecting only the first three digits from zip code because it encodes for state which is within hipaa compliance ---
+(CAST(LEFT(CAST(zip AS VARCHAR),3) AS INT)) as zip_hipaa,
+-- using the first three digits from address as a random number to shift all dates --
+CAST(LEFT(CAST(address AS VARCHAR),3) AS INT) as date_shift_offset,
+--- date shifting patient birth date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'birthdate_hipaa' --
+birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as birthdate_hipaa,
+--- date shifting patient death date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'deathdate_hipaa' --
+deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as deathdate_hipaa,
+--- date shifting patient admission date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'admission_date_hipaa' --
+admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as admission_date_hipaa,
+--- date shifting patient discharge date using the first three digits of address in the same row and saving it in a new hipaa compliant column 'discharge_date_hipaa' --
+discharge_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)) as discharge_date_hipaa,
+--- using DATE_PART() function and AGE() to calculate age at admission and at death with random number from address/date_shift_offset to get hipaa compliant ages ---
+DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_admission,
+-- age at death --
+DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) as age_at_death
+FROM inpatientregistry 
+) ,
+filtered_age as (
+  SELECT md5(CAST(hipaa_inpatientregistry.medical_record_id AS TEXT)) as encoded_mrn,
+--- filtering out patient ages and dates that indicate a patient is 90 or older using CASE ---
+   CASE WHEN DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) >= 89 THEN 89
+     ELSE DATE_PART('year', age(admission_date +(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) END as age_at_admission,
+   CASE WHEN DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) >= 89 THEN 89 
+     ELSE DATE_PART('year', age(deathdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)), birthdate+(CAST(LEFT(CAST(address AS VARCHAR),3) AS INT)))) END as age_at_death, admission_date_hipaa, discharge_date_hipaa, zip_hipaa
+FROM hipaa_inpatientregistry 
+--- joining inpatientregistry and hipaa_inpatientregistry on medical_record_id to be able to filter and shift dates in the hipaa_inpatientregistry table to be HIPAA compliant ---
+LEFT JOIN inpatientregistry on hipaa_inpatientregistry.medical_record_id = inpatientregistry.medical_record_id
+)
+--- selecting encounter data from hipaa table ---
+SELECT encoded_mrn, admission_date_hipaa, discharge_date_hipaa, encounterclass, code, description, reasoncode, reasondescription
+-- adding data to new encounter look-up table --
+INTO TEMP TABLE encounter_lookup
+FROM inpatientregistry, filtered_age
+
+```
+
+```{sql connection=con}
+--- selecting distinct mrns per encounter in encounter look-up table ---
+SELECT distinct encoded_mrn, encounterclass
+FROM encounter_lookup
+
+```
