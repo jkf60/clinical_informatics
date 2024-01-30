@@ -18,5 +18,5 @@ Plan, develop, maintain, or operate a variety of health record indexes or storag
 Compile and maintain patients' medical records to document condition and treatment and to provide data for research or cost control and care improvement efforts.
 
 Pre-requisites
-A working knowledge of R, Python and SQL. All HIDS students are highly encouraged to complete the self-directed bootcamp to ensure they are at an intermediate level in R, Python and SQL.
+A working knowledge of R, Python and SQL. 
 
